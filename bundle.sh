@@ -10,6 +10,7 @@ cp VASSAL_server.bat /c/temp/VASSAL
 echo Changing directories
 pushd /c/temp/ 
 mv VASSAL/lib/vassal-app-3.6.0-SNAPSHOT.jar VASSAL/lib/Vengine.jar
+rm -f VASSAL/l4j.xml.in
 echo Zipping up directory for distribution
 zip -r -q VASSAL.zip VASSAL
 echo Moving back to original directory
