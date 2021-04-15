@@ -1,11 +1,11 @@
 package VASSAL.counters;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Color;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import VASSAL.tools.NamedKeyStroke;
 
@@ -19,7 +19,7 @@ public class AreaOfEffectSerializeTest extends SerializeTest<AreaOfEffect> {
       aoe.radius = 2;
       aoe.alwaysActive = true;
       aoe.activateCommand = "testActivateCommand";
-      aoe.activateKey = new NamedKeyStroke("A");
+      aoe.activateKey = NamedKeyStroke.of("A");
       aoe.mapShaderName = "testMapShaderName";
       aoe.fixedRadius = true;
       aoe.radiusMarker = "testRadiusMarker";

@@ -27,7 +27,8 @@ Reference: link:https://maven.apache.org/ref/3.6.3/maven-core/lifecycles.html[]
 * javadoc
 * source: creates source code jar
 * license: downloads licenses
-. *verify*: not used
+. *verify*
+* pmd
 . *install*: copies build artifacts into local maven repository
 . *site*: not used
 . *deploy*: copies build artifacts and maven meta files to `/snapshots` or `/releases`
@@ -45,6 +46,16 @@ Runs goal link:https://maven.apache.org/plugins/maven-checkstyle-plugin/check-mo
 * Maven plugin configuration in link:{rootdir}vassal-app/pom.xml[]
 * Checkstyle configuration in link:{rootdir}vassal-app/src/test/resources/checkstyle-checks.xml[]
 * Exceptions from checks in link:{rootdir}vassal-app/src/test/resources/checkstyle-suppressions.xml[]
+
+===== PMD
+
+[NOTE]
+====
+Runs goal link:https://maven.apache.org/plugins/maven-pmd-plugin/check-mojo.html[pmd:check] in *verify* phase
+====
+
+* Maven plugin version in link:{rootdir}pom.xml[]
+* Maven plugin configuration in link:{rootdir}vassal-app/pom.xml[]
 
 ===== Source
 
@@ -223,10 +234,33 @@ include::{rootdir}Makefile[lines=258]
 
 == Release checklist
 
-* [ ] do this
-* [ ] do that
-* [ ] ???
-* [ ] profit
+* [ ] Update the release announcement Jinja templates in `dist/notes` with the changes for the new release.
+* [ ] Fill in the release date in `CHANGES`.
+* [ ] Set `MAVEN_VERSION` to `$(VNUM)` in the `Makefile`.
+* [ ] `make clean`
+* [ ] `make` (This will update various `pom.xml` with the new version number.)
+* [ ] Commit the changes.
+* [ ] `git tag -s -m 'The x.y.z release.' x.y.z`
+* [ ] `git push --tags`
+* [ ] `make release`
+* [ ] `make release-notes`
+* [ ] Add a new release at GitHub. Upload the release pacakges. Paste in the change log.
+* [ ] Update `util/current-release` and `util/current-beta` with release version number and add release packages to `releases/` in `site` repo and push to GitHub.
+* [ ] Pull `site` repo (in `/var/www/html/site` on vassalengine.org).
+* [ ] Upload maven artifacts to our repo: `rsync -avP releases/ vassal.org:/var/www/html/site/maven`
+* [ ] From `/var/www/html/site/javadoc/` on vassalengine.org: `mkdir x.y.z && cd x.y.z && unzip ../../maven/org/vassalengine/vassal-app/x.y.z/vassal-app-x.y.z-javadoc.jar`
+* [ ] Add x.y.z release in our Bugzilla.
+* [ ] Update the release notes in our wiki.
+* [ ] Post release announcements (see `tmp/notes-*`):
+** Our news page: http://www.vassalengine.org/news/
+** Our forum: http://www.vassalengine.org/forum/viewforum.php?f=2 (Set the new post to be an Announcement; also set the previous release's post to be a Standard Topic post again.)
+** BGG Computer Based Board Gaming forum: https://www.boardgamegeek.com/forum/28/bgg/computer-based-board-gaming
+** BGG Press Releases forum: https://www.boardgamegeek.com/forum/31/bgg/press-releases
+** Our forum at ConsimWorld: http://talk.consimworld.com/WebX/.ee6f15c/10067
+** VASL forum at GameSquad: http://www.gamesquad.com/forums/index.php?forums/vasl.103/
+** Facebook: Vassal Wargamers Americas: https://www.facebook.com/groups/vassalwargamers/
+** Facebook: Vassal Wargamers Europe: https://www.facebook.com/groups/VassalWargamersEurope
+* [ ] Relax.
 
 == Running Vassal
 

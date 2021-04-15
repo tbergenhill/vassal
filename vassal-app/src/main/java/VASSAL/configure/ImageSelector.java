@@ -103,14 +103,21 @@ public class ImageSelector extends Configurer implements ItemListener {
 
   @Override
   public void setValue(String s) {
-
-    if (s == null || s.isBlank() || s.equals(NO_IMAGE)) {
-      setImageName("");
+    if (s == null || s.isBlank()) {
+      imageName = null;
       imageViewer.setIcon(getNoImageIcon());
       imageViewer.setPreferredSize(new Dimension(DEFAULT_SIZE, DEFAULT_SIZE));
     }
     else {
-      setImageName(s);
+      if (s.equals(imageName)) {
+        // We have to do this because we have no way of calling update on
+        // any ImageOps which depend on this image.
+        Op.clearCache();
+      }
+      else {
+        imageName = s;
+      }
+
       icon.setOp(Op.load(s));
 
       // Is the image too large?
@@ -194,12 +201,12 @@ public class ImageSelector extends Configurer implements ItemListener {
       setValue(name);
     }
     else {
-      setValue(NO_IMAGE);
+      setValue(null);
     }
   }
 
   private void clearImage() {
-    setValue(NO_IMAGE);
+    setValue(null);
   }
 
   private Icon getNoImageIcon() {
@@ -215,9 +222,5 @@ public class ImageSelector extends Configurer implements ItemListener {
 
   public String getImageName() {
     return imageName;
-  }
-
-  private void setImageName(String imageName) {
-    this.imageName = imageName;
   }
 }

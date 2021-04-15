@@ -24,7 +24,7 @@ import VASSAL.build.GameModule;
 import VASSAL.build.GpIdSupport;
 import VASSAL.tools.NamedKeyStroke;
 import java.lang.reflect.InvocationTargetException;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
@@ -40,14 +40,14 @@ public class PlaceMarkerTest extends DecoratorTest {
 
     //
     trait = createTrait();
-    trait.command = new KeyCommand("testCommand", new NamedKeyStroke("plugh"), trait); // NON-NLS
-    trait.key = new NamedKeyStroke("xyzzy"); // NON-NLS
+    trait.command = new KeyCommand("testCommand", NamedKeyStroke.of("plugh"), trait); // NON-NLS
+    trait.key = NamedKeyStroke.of("xyzzy"); // NON-NLS
     trait.markerSpec = "spec";
     trait.markerText = "text";
     trait.xOffset = 2;
     trait.yOffset = 3;
     trait.matchRotation = true;
-    trait.afterBurnerKey = new NamedKeyStroke("plover");
+    trait.afterBurnerKey = NamedKeyStroke.of("plover");
     trait.description = "desc";
     trait.placement = PlaceMarker.STACK_TOP;
     trait.above = true;

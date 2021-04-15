@@ -43,6 +43,7 @@ import VASSAL.configure.Configurer;
 import VASSAL.configure.IntConfigurer;
 import VASSAL.configure.DirectoryConfigurer;
 import VASSAL.i18n.Resources;
+import VASSAL.tools.ProblemDialog;
 import VASSAL.tools.ReadErrorDialog;
 
 /**
@@ -59,6 +60,10 @@ public class Prefs implements Closeable {
   public static final String MAIN_WINDOW_REMEMBER = "mainWindowRemember"; //NON-NLS
   public static final String MAIN_WINDOW_HEIGHT = "mainWindowHeight"; //NON-NLS
   public static final String MAIN_WINDOW_WIDTH  = "mainWindowWidth";  //NON-NLS
+
+  public static final String OVERRIDE_DEFAULT_FONT_SIZE = "overrideDefaultFontSize"; //NON-NLS
+
+  public static final String TRANSLATABLE_SUPPORT = "translatableSupport"; //NON-NLS
 
   private static Prefs globalPrefs; // A Global Preferences object
 
@@ -104,7 +109,6 @@ public class Prefs implements Closeable {
   /** @param b - no action taken -> overridden by GlobalPrefs */
   public void setDisableAutoWrite(boolean b) {
   }
-
 
   public void addOption(Configurer o) {
     addOption(Resources.getString("Prefs.general_tab"), o); //$NON-NLS-1$
@@ -167,34 +171,6 @@ public class Prefs implements Closeable {
     return storedValues.getProperty(key);
   }
 
-  public static String sanitize(String str) {
-    /*
-      Java gives us no way of checking whether a string is a valid
-      filename on the filesystem we're using. Filenames matching
-      [0-9A-Za-z_]+ are safe pretty much everywhere. Any code point
-      in [0-9A-Za-z] is passed through; every other code point c is
-      escaped as "_hex(c)_". This mapping is a surjection and will
-      produce filenames safe on every sane filesystem, so long as the
-      input strings are not too long.
-    */
-    final StringBuilder sb = new StringBuilder();
-    for (int i = 0; i < str.length(); ++i) {
-      final int cp = str.codePointAt(i);
-      if (('0' <= cp && cp <= '9') ||
-          ('A' <= cp && cp <= 'Z') ||
-          ('a' <= cp && cp <= 'z')) {
-        sb.append((char) cp);
-      }
-      else {
-        sb.append('_')
-          .append(Integer.toHexString(cp).toUpperCase())
-          .append('_');
-      }
-    }
-
-    return sb.toString();
-  }
-
   protected synchronized void read() {
     // We're not going to write, but you can't lock a non-writable FileChannel
     try (RandomAccessFile raf = new RandomAccessFile(file, "rw")) {
@@ -254,16 +230,15 @@ public class Prefs implements Closeable {
   }
 
   /** Save these preferences and write to disk. */
+  @Deprecated(since = "2021-02-15", forRemoval = true)
   public void write() throws IOException {
+    ProblemDialog.showDeprecated("2021-02-15");
     save();
   }
 
   @Override
   public void close() throws IOException {
     save();
-    if (this == globalPrefs) {
-      globalPrefs = null;
-    }
   }
 
   /**
@@ -271,16 +246,11 @@ public class Prefs implements Closeable {
    *
    * @return the global <code>Prefs</code> object
    */
-  public static Prefs getGlobalPrefs() {
+  public static synchronized Prefs getGlobalPrefs() {
     if (globalPrefs == null) {
       final PrefsEditor ed = new PrefsEditor();
       // The underscore prevents collisions with module prefs
       globalPrefs = new GlobalPrefs(ed, new File(Info.getPrefsDir(), "V_Global"));
-
-      final DirectoryConfigurer c =
-        new DirectoryConfigurer(MODULES_DIR_KEY, null);
-      c.setValue(new File(System.getProperty("user.home")));
-      globalPrefs.addOption(null, c);
     }
 
     return globalPrefs;
@@ -293,6 +263,18 @@ public class Prefs implements Closeable {
    */
   public static void initSharedGlobalPrefs() {
     getGlobalPrefs();
+
+    final DirectoryConfigurer c =
+      new DirectoryConfigurer(MODULES_DIR_KEY, null);
+    c.setValue(new File(System.getProperty("user.home")));
+    globalPrefs.addOption(null, c);
+
+    final IntConfigurer overrideDefaultFontSize = new IntConfigurer(
+        OVERRIDE_DEFAULT_FONT_SIZE,
+        Resources.getString("Prefs.override_default_font_size"),
+       0
+    );
+    globalPrefs.addOption(Resources.getString("Prefs.general_tab"), overrideDefaultFontSize);
 
     // Options to remember main window size
     final BooleanConfigurer windowRemember = new BooleanConfigurer(
@@ -333,5 +315,33 @@ public class Prefs implements Closeable {
     );
 
     globalPrefs.addOption(wizardConf);
+  }
+
+  public static String sanitize(String str) {
+    /*
+      Java gives us no way of checking whether a string is a valid
+      filename on the filesystem we're using. Filenames matching
+      [0-9A-Za-z_]+ are safe pretty much everywhere. Any code point
+      in [0-9A-Za-z] is passed through; every other code point c is
+      escaped as "_hex(c)_". This mapping is a surjection and will
+      produce filenames safe on every sane filesystem, so long as the
+      input strings are not too long.
+    */
+    final StringBuilder sb = new StringBuilder();
+    for (int i = 0; i < str.length(); ++i) {
+      final int cp = str.codePointAt(i);
+      if (('0' <= cp && cp <= '9') ||
+          ('A' <= cp && cp <= 'Z') ||
+          ('a' <= cp && cp <= 'z')) {
+        sb.append((char) cp);
+      }
+      else {
+        sb.append('_')
+          .append(Integer.toHexString(cp).toUpperCase())
+          .append('_');
+      }
+    }
+
+    return sb.toString();
   }
 }

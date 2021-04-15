@@ -38,10 +38,10 @@ import VASSAL.i18n.Resources;
 import VASSAL.tools.DataArchive;
 import VASSAL.tools.LaunchButton;
 import VASSAL.tools.NamedKeyStroke;
+import VASSAL.tools.ProblemDialog;
 import VASSAL.tools.SequenceEncoder;
 
 import java.awt.Component;
-import java.awt.event.ActionListener;
 import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -79,28 +79,31 @@ public class PlayerRoster extends AbstractToolbarItem implements CommandEncoder,
   protected List<PlayerInfo> players = new ArrayList<>();
   protected List<String> sides = new ArrayList<>();
   protected String[] untranslatedSides;
+
+  /** @deprecated use launch from the superclass */
+  @Deprecated(since = "2021-04-03", forRemoval = true)
   protected LaunchButton retireButton;
-  protected List<SideChangeListener> sideChangeListeners =
-    new ArrayList<>();
+
+  protected List<SideChangeListener> sideChangeListeners = new ArrayList<>();
 
   protected String translatedObserver;
 
   private boolean pickedSide = false;
 
   public PlayerRoster() {
-    final ActionListener al = e -> launch();
-
     setButtonTextKey(BUTTON_TEXT);
     setTooltipKey(TOOL_TIP);
     setIconKey(BUTTON_ICON);
     setHotKeyKey(BUTTON_KEYSTROKE);
-    retireButton = makeLaunchButton(
+
+    setLaunchButton(makeLaunchButton(
       Resources.getString("PlayerRoster.allow_another"),
       Resources.getString("PlayerRoster.retire"),
       "",
-      al
-    );
+      e -> launch()
+    ));
     getLaunchButton().setVisible(false);
+    retireButton = getLaunchButton(); // for compatibility
 
     translatedObserver = Resources.getString("PlayerRoster.observer"); //$NON-NLS-1$
   }
@@ -142,7 +145,7 @@ public class PlayerRoster extends AbstractToolbarItem implements CommandEncoder,
           }
         }
 
-        retireButton.setAttribute(att.getName(), att.getValue());
+        getLaunchButton().setAttribute(att.getName(), att.getValue());
         Localization.getInstance()
                     .saveTranslatableAttribute(this, att.getName(),
                                                      att.getValue());
@@ -213,8 +216,9 @@ public class PlayerRoster extends AbstractToolbarItem implements CommandEncoder,
   /**
    * @deprecated use {@link GameModule#addSideChangeListenerToPlayerRoster(SideChangeListener)}
    */
-  @Deprecated
+  @Deprecated(since = "2020-06-15", forRemoval = true)
   public static void addSideChangeListener(SideChangeListener l) {
+    ProblemDialog.showDeprecated("2020-06-15");
     GameModule.getGameModule().addSideChangeListenerToPlayerRoster(l);
   }
 
@@ -222,11 +226,20 @@ public class PlayerRoster extends AbstractToolbarItem implements CommandEncoder,
     sideChangeListeners.add(l);
   }
 
+  /**
+   * @deprecated use {@link GameModule#removeSideChangeListenerFromPlayerRoster(SideChangeListener)}
+   */
+  @Deprecated(since = "2020-06-15", forRemoval = true)
   public static void removeSideChangeListener(SideChangeListener l) {
+    ProblemDialog.showDeprecated("2020-06-15");
     final PlayerRoster r = GameModule.getGameModule().getPlayerRoster();
     if (r != null) {
       r.sideChangeListeners.remove(l);
     }
+  }
+
+  public void removeSideChangeListenerFromInstance(SideChangeListener l) {
+    sideChangeListeners.remove(l);
   }
 
   @Override
@@ -339,7 +352,7 @@ public class PlayerRoster extends AbstractToolbarItem implements CommandEncoder,
       players.add(e);
     }
 
-    if (isMultiPlayer()) {
+    if (GameModule.getGameModule().isMultiPlayer()) {
       final Logger log = GameModule.getGameModule().getLogger();
       if (log instanceof BasicLogger) {
         ((BasicLogger)log).setMultiPlayer(true);
@@ -397,7 +410,7 @@ public class PlayerRoster extends AbstractToolbarItem implements CommandEncoder,
         final PlayerInfo saved = players.get(players.indexOf(me));
         saved.playerName = me.playerName;
       }
-      if (isMultiPlayer()) {
+      if (GameModule.getGameModule().isMultiPlayer()) {
         final Logger log = GameModule.getGameModule().getLogger();
         if (log instanceof BasicLogger) {
           ((BasicLogger)log).setMultiPlayer(true);
@@ -504,8 +517,6 @@ public class PlayerRoster extends AbstractToolbarItem implements CommandEncoder,
    * @return True if this is currently a multiPlayer game (either connected to a server, or more than one player side allocated)
    */
   public boolean isMultiPlayer() {
-    if (GameModule.getGameModule().getServer().isConnected()) return true;
-
     // NB. Intentionally not excluding observers.
     return players.size() > 1;
   }
@@ -552,9 +563,12 @@ public class PlayerRoster extends AbstractToolbarItem implements CommandEncoder,
       nextChoice // Offer calculated most likely "next side" as the default
     );
 
-    // OBSERVER must always be stored internally in English.
+    // sides must always be stored internally in English.
     if (translatedObserver.equals(newSide)) {
       newSide = OBSERVER;
+    }
+    else {
+      newSide = untranslateSide(newSide);
     }
     return newSide;
   }
@@ -640,22 +654,24 @@ public class PlayerRoster extends AbstractToolbarItem implements CommandEncoder,
       });
       controls.add("Editor.PlayerRoster.sides_available", sidesConfig);
 
-      textConfig = new StringConfigurer(BUTTON_TEXT, "", retireButton.getAttributeValueString(BUTTON_TEXT)); //$NON-NLS-1$
-      textConfig.addPropertyChangeListener(evt -> retireButton.setAttribute(BUTTON_TEXT, textConfig.getValueString()));
+      final LaunchButton b = getLaunchButton();
+
+      textConfig = new StringConfigurer(BUTTON_TEXT, "", b.getAttributeValueString(BUTTON_TEXT)); //$NON-NLS-1$
+      textConfig.addPropertyChangeListener(evt -> b.setAttribute(BUTTON_TEXT, textConfig.getValueString()));
       controls.add("Editor.PlayerRoster.retire_button_text", textConfig);
 
-      tooltipConfig = new StringConfigurer(TOOL_TIP, "", retireButton.getAttributeValueString(TOOL_TIP)); //$NON-NLS-1$
-      tooltipConfig.addPropertyChangeListener(evt -> retireButton.setAttribute(TOOL_TIP, tooltipConfig.getValueString()));
+      tooltipConfig = new StringConfigurer(TOOL_TIP, "", b.getAttributeValueString(TOOL_TIP)); //$NON-NLS-1$
+      tooltipConfig.addPropertyChangeListener(evt -> b.setAttribute(TOOL_TIP, tooltipConfig.getValueString()));
       controls.add("Editor.PlayerRoster.retire_button_tooltip", tooltipConfig);
 
       iconConfig = new IconConfigurer(BUTTON_ICON, "", null); //$NON-NLS-1$
-      iconConfig.setValue(retireButton.getIcon());
-      iconConfig.addPropertyChangeListener(evt -> retireButton.setAttribute(BUTTON_ICON, iconConfig.getValueString()));
+      iconConfig.setValue(b.getIcon());
+      iconConfig.addPropertyChangeListener(evt -> b.setAttribute(BUTTON_ICON, iconConfig.getValueString()));
       controls.add("Editor.PlayerRoster.retire_button_icon", iconConfig, "grow"); // NON-NLS
 
-      keyConfig = (NamedHotKeyConfigurer) retireButton.getHotkeyConfigurer();
+      keyConfig = (NamedHotKeyConfigurer) b.getHotkeyConfigurer();
       keyConfig.setName("");
-      keyConfig.addPropertyChangeListener(evt -> retireButton.setAttribute(BUTTON_KEYSTROKE, keyConfig.getValueString()));
+      keyConfig.addPropertyChangeListener(evt -> b.setAttribute(BUTTON_KEYSTROKE, keyConfig.getValueString()));
       controls.add("Editor.PlayerRoster.retire_button_keystroke", keyConfig);
     }
 

@@ -25,13 +25,13 @@ import javax.swing.KeyStroke;
 import VASSAL.build.GameModule;
 import VASSAL.command.Command;
 import VASSAL.configure.NamedHotKeyConfigurer;
-import VASSAL.i18n.Localization;
-import VASSAL.i18n.PieceI18nData;
 import VASSAL.i18n.TranslatablePiece;
 import VASSAL.tools.NamedKeyStroke;
 
 public class KeyCommand extends AbstractAction {
   private static final long serialVersionUID = 1L;
+
+  public static final KeyCommand[] NONE = new KeyCommand[0];
 
   private final String name;
   protected String untranslatedName;
@@ -66,18 +66,25 @@ public class KeyCommand extends AbstractAction {
   }
 
   public KeyCommand(String name, NamedKeyStroke key, GamePiece target, boolean enabled) {
-    this(name, key == null ? null : key.getKeyStroke(), target, enabled);
+    this(name, key, target, null, enabled);
+  }
+
+  public KeyCommand(String name, NamedKeyStroke key, GamePiece target, TranslatablePiece i18nPiece, boolean enabled) {
+    this(name, key == null ? null : key.getKeyStroke(), target, i18nPiece, enabled);
     namedKeyStroke = key == null ? NamedKeyStroke.NULL_KEYSTROKE : key;
   }
 
   public KeyCommand(String name, KeyStroke key, GamePiece target, boolean enabled) {
-    this(name, key, target, null);
+    this(name, key, target, null, enabled);
+  }
+
+  public KeyCommand(String name, KeyStroke key, GamePiece target, TranslatablePiece i18nPiece, boolean enabled) {
+    this(name, key, target, i18nPiece);
     setEnabled(enabled);
   }
 
   public KeyCommand(KeyCommand command) {
-    this(command.name, command.stroke, command.target, command.isEnabled());
-    this.i18nPiece = command.i18nPiece;
+    this(command.name, command.stroke, command.target, command.i18nPiece, command.isEnabled());
   }
 
   public String getName() {
@@ -160,15 +167,7 @@ public class KeyCommand extends AbstractAction {
     if (localizedMenuText == null && name != null) {
       String localizedName = name;
       if (i18nPiece != null && GameModule.getGameModule().isLocalizationEnabled()) {
-        String key = null;
-        for (final PieceI18nData.Property p : i18nPiece.getI18nData().getProperties()) {
-          if (p.getName().equals(name)) {
-            key = TranslatablePiece.PREFIX + p.getName();
-          }
-        }
-        if (key != null) {
-          localizedName = Localization.getInstance().translate(key, name);
-        }
+        localizedName = i18nPiece.getI18nData().translate(name);
       }
       localizedMenuText = makeMenuText(stroke, localizedName);
     }
@@ -176,7 +175,7 @@ public class KeyCommand extends AbstractAction {
   }
 
   private static String makeMenuText(KeyStroke ks, String text) {
-    return ks != null && text != null && !text.isBlank() ?
-      text + "  " + NamedHotKeyConfigurer.getString(ks) : text;
+    return (ks != null && text != null && !text.isBlank() ?
+      text + "  " + NamedHotKeyConfigurer.getString(ks) : text).intern();
   }
 }

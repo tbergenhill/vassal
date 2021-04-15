@@ -1,17 +1,35 @@
 package VASSAL.counters;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertArrayEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.any;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 import java.awt.event.InputEvent;
+import java.awt.image.BufferedImage;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
+import VASSAL.build.GameModule;
+import VASSAL.tools.ResourcePathFinder;
 import VASSAL.tools.FormattedString;
 import VASSAL.tools.NamedKeyStroke;
-
+import VASSAL.tools.imageop.Op;
+import VASSAL.tools.imageop.ImageOp;
 
 public class EmbellishmentSerializeTest extends SerializeTest<Embellishment> {
+  class MockResourcePathFinder implements ResourcePathFinder {
+    public String findImagePath(String name) {
+      return "images/" + name;
+    }
+    public String findHelpFileName(String name) {
+      return name;
+    }
+  }
   @Test
   public void serialize() throws Exception {
     Embellishment emb = new Embellishment();
@@ -24,7 +42,7 @@ public class EmbellishmentSerializeTest extends SerializeTest<Embellishment> {
     emb.downCommand = "testDownCommand";
     emb.downModifiers = InputEvent.CTRL_DOWN_MASK;
     emb.downKey = "testDownKey";
-    emb.resetKey = new NamedKeyStroke("A");
+    emb.resetKey = NamedKeyStroke.of("A");
     emb.resetLevel = new FormattedString("resetLevel");
     emb.drawUnderneathWhenSelected = true;
     emb.xOff = 1;
@@ -33,17 +51,27 @@ public class EmbellishmentSerializeTest extends SerializeTest<Embellishment> {
     emb.commonName = new String[] {"commonName1", "commonName2"};
     emb.loopLevels = true;
     emb.name = "testName";
-    emb.rndKey = new NamedKeyStroke("B");
+    emb.rndKey = NamedKeyStroke.of("B");
     emb.followProperty = true;
     emb.propertyName = "testPropertyName";
     emb.firstLevelValue = 3;
     emb.version = 4;
     emb.alwaysActive = true;
-    emb.activateKeyStroke = new NamedKeyStroke("C");
-    emb.increaseKeyStroke = new NamedKeyStroke("D");
-    emb.decreaseKeyStroke = new NamedKeyStroke("E");
-
-    super.serializeTest(Embellishment.class, emb);
+    emb.activateKeyStroke = NamedKeyStroke.of("C");
+    emb.increaseKeyStroke = NamedKeyStroke.of("D");
+    emb.decreaseKeyStroke = NamedKeyStroke.of("E");
+    ImageOp im = Op.load(new BufferedImage(2, 2, BufferedImage.TYPE_4BYTE_ABGR));
+    try (MockedStatic<GameModule> staticGm = Mockito.mockStatic(GameModule.class)) {
+      try (MockedStatic<Op> staticOp = Mockito.mockStatic(Op.class)) {
+        // Now return the dummy image when asked instead of looking in the archive
+        staticOp.when(() -> Op.load(any(String.class))).thenReturn(im);
+        final GameModule gm = mock(GameModule.class);
+        final MockResourcePathFinder rpf = new MockResourcePathFinder();
+        staticGm.when(GameModule::getGameModule).thenReturn(gm);
+        when(gm.getResourcePathFinder()).thenReturn(rpf);
+        super.serializeTest(Embellishment.class, emb);
+      }
+    }
   }
 
   @Override

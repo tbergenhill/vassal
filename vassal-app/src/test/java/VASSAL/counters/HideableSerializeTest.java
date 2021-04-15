@@ -1,10 +1,10 @@
 package VASSAL.counters;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.awt.Color;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import VASSAL.tools.NamedKeyStroke;
 
@@ -13,7 +13,7 @@ public class HideableSerializeTest extends SerializeTest<Hideable> {
   @Test
   public void serialize() throws Exception {
     Hideable hideable = new Hideable();
-    hideable.hideKey = new NamedKeyStroke("A");
+    hideable.hideKey = NamedKeyStroke.of("A");
     hideable.command = "testCommand";
     hideable.bgColor = Color.black;
     hideable.access = PlayerAccess.getInstance();

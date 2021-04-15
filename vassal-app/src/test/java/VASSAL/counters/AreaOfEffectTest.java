@@ -21,13 +21,12 @@ import VASSAL.tools.NamedKeyStroke;
 import java.awt.Color;
 import java.lang.reflect.InvocationTargetException;
 import javax.swing.KeyStroke;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class AreaOfEffectTest extends DecoratorTest {
 
-
   @Test
-  public void serializeTests() throws NoSuchMethodException, InstantiationException, IllegalAccessException, InvocationTargetException {
+  void serializeTests() throws NoSuchMethodException, InstantiationException, IllegalAccessException, InvocationTargetException {
 
     // Default piece
     AreaOfEffect trait = new AreaOfEffect();
@@ -62,7 +61,7 @@ public class AreaOfEffectTest extends DecoratorTest {
     trait.radius = 3;
     trait.alwaysActive = false;
     trait.activateCommand = "Activate"; // NON-NLS
-    trait.activateKey = new NamedKeyStroke("xyzzy"); // NON-NLS
+    trait.activateKey = NamedKeyStroke.of("xyzzy"); // NON-NLS
     trait.fixedRadius = true;
     trait.description = "plover";
     serializeTest("NamedKeystroke, no map shader, fixed radius", trait); // NON-NLS
@@ -74,7 +73,7 @@ public class AreaOfEffectTest extends DecoratorTest {
     trait.radius = 3;
     trait.alwaysActive = false;
     trait.activateCommand = "Activate"; // NON-NLS
-    trait.activateKey = new NamedKeyStroke(KeyStroke.getKeyStroke(65, 0));
+    trait.activateKey = NamedKeyStroke.of(KeyStroke.getKeyStroke(65, 0));
     trait.fixedRadius = true;
     trait.description = "plover";
     serializeTest("KeyStroke, no map shader, fixed radius", trait); // NON-NLS

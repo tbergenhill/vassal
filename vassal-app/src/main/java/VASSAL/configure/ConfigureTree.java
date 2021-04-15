@@ -17,6 +17,7 @@
  */
 package VASSAL.configure;
 
+import VASSAL.build.AbstractConfigurable;
 import VASSAL.build.Buildable;
 import VASSAL.build.Builder;
 import VASSAL.build.Configurable;
@@ -31,6 +32,7 @@ import VASSAL.build.module.documentation.HelpWindow;
 import VASSAL.build.module.map.boardPicker.board.mapgrid.Zone;
 import VASSAL.build.module.properties.GlobalProperties;
 import VASSAL.build.module.properties.GlobalProperty;
+import VASSAL.build.module.properties.GlobalTranslatableMessage;
 import VASSAL.build.module.properties.ZoneProperty;
 import VASSAL.build.widget.CardSlot;
 import VASSAL.build.widget.PieceSlot;
@@ -38,7 +40,6 @@ import VASSAL.counters.Decorator;
 import VASSAL.counters.EditablePiece;
 import VASSAL.counters.GamePiece;
 import VASSAL.counters.MassPieceLoader;
-import VASSAL.counters.Properties;
 import VASSAL.i18n.Resources;
 import VASSAL.i18n.TranslateAction;
 import VASSAL.launch.EditorWindow;
@@ -55,6 +56,9 @@ import java.awt.Component;
 import java.awt.Font;
 import java.awt.Frame;
 import java.awt.Toolkit;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
@@ -80,6 +84,7 @@ import javax.swing.Action;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.DropMode;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -87,6 +92,7 @@ import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JMenu;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
@@ -94,8 +100,11 @@ import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
+import javax.swing.TransferHandler;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
+import javax.swing.event.TreeExpansionEvent;
+import javax.swing.event.TreeExpansionListener;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -117,7 +126,7 @@ import org.apache.commons.lang3.StringUtils;
  * When we're running as the Extension Editor, this is subclassed by {@link ExtensionTree}, which
  * overrides some methods to handle extension-specific differences.
  */
-public class ConfigureTree extends JTree implements PropertyChangeListener, MouseListener, MouseMotionListener, TreeSelectionListener {
+public class ConfigureTree extends JTree implements PropertyChangeListener, MouseListener, MouseMotionListener, TreeSelectionListener, TreeExpansionListener {
   private static final long serialVersionUID = 1L;
 
   protected Map<Configurable, DefaultMutableTreeNode> nodes = new HashMap<>();
@@ -182,6 +191,7 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
     addMouseListener(this);
     addMouseMotionListener(this);
     addTreeSelectionListener(this);
+    addTreeExpansionListener(this);
     searchCmd = Resources.getString("Editor.search"); //$NON-NLS-1$
     moveCmd = Resources.getString("Editor.move"); //$NON-NLS-1$
     deleteCmd = Resources.getString("Editor.delete"); //$NON-NLS-1$
@@ -233,8 +243,17 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
     chatter = GameModule.getGameModule().getChatter();
 
     createKeyBindings();
+
+    setDragEnabled(true);
+    setDropMode(DropMode.ON_OR_INSERT);
+    setTransferHandler(new TreeTransferHandler());
   }
 
+
+  protected static String noHTML(String text) {
+    return text.replaceAll("<", "&lt;")  //NON-NLS // This prevents any unwanted tag from functioning
+               .replaceAll(">", "&gt;"); //NON-NLS // This makes sure > doesn't break any of our legit <div> tags
+  }
 
   protected static void chat(String text) {
     if (chatter != null) {
@@ -292,7 +311,7 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
           if ((target != null) && (target.getConfigurer() != null)) {
             final Action a = buildEditAction(target);
             if (a != null) {
-              a.actionPerformed(new ActionEvent(ae.getSource(), ActionEvent.ACTION_PERFORMED, "Edit"));
+              a.actionPerformed(new ActionEvent(ae.getSource(), ActionEvent.ACTION_PERFORMED, "Edit")); //NON-NLS
             }
           }
         }
@@ -301,6 +320,21 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
         }
       }
     });
+  }
+
+  @Override
+  public void treeExpanded(TreeExpansionEvent event) {
+
+  }
+
+  /**
+   * A cell has been collapsed. Reset the edit flag on all the children owned by this node
+   * @param event Expansion event
+   */
+  @Override
+  public void treeCollapsed(TreeExpansionEvent event) {
+    final ConfigureTreeNode node = (ConfigureTreeNode) event.getPath().getLastPathComponent();
+    node.resetChildEditFlags();
   }
 
 
@@ -347,7 +381,7 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
 
   protected DefaultMutableTreeNode buildTreeNode(Configurable c) {
     c.addPropertyChangeListener(this);
-    final DefaultMutableTreeNode node = new DefaultMutableTreeNode(c);
+    final DefaultMutableTreeNode node = new ConfigureTreeNode(c);
     final Configurable[] children = c.getConfigureComponents();
     for (final Configurable child : children) {
       if (! (child instanceof Plugin)) { // Hide Plug-ins
@@ -363,6 +397,18 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
       menu.add(a).setFont(POPUP_MENU_FONT);
     }
   }
+
+  protected void addSubMenu(JPopupMenu menu, String name, List<Action> l) {
+    if ((l != null) && !l.isEmpty()) {
+      final JMenu subMenu = new JMenu(name);
+      for (final Action a: l) {
+        subMenu.add(a).setFont(POPUP_MENU_FONT);
+      }
+      menu.add(subMenu).setFont(POPUP_MENU_FONT);
+      l.clear();
+    }
+  }
+
 
   private void addActionGroup(JPopupMenu menu, List<Action> l) {
     boolean empty = true;
@@ -380,7 +426,7 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
 
   protected JPopupMenu buildPopupMenu(final Configurable target) {
     final JPopupMenu popup = new JPopupMenu();
-    final ArrayList<Action> l = new ArrayList<>();
+    final List<Action> l = new ArrayList<>();
     l.add(buildEditAction(target));
     l.add(buildEditPiecesAction(target));
     addActionGroup(popup, l);
@@ -396,9 +442,12 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
     l.add(buildPasteAction(target));
     l.add(buildMoveAction(target));
     addActionGroup(popup, l);
-    for (final Action a : buildAddActionsFor(target)) {
+    final List<Action> inserts = new ArrayList<>();
+    final List<Action> adds = buildAddActionsFor(target, inserts);
+    for (final Action a : adds) {
       addAction(popup, a);
     }
+    addSubMenu(popup, Resources.getString("Editor.ConfigureTree.insert"), inserts);
     if (hasChild(target, PieceSlot.class) || hasChild(target, CardSlot.class)) {
       addAction(popup, buildMassPieceLoaderAction(target));
     }
@@ -557,11 +606,17 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
     return a;
   }
 
+
+  protected boolean isValidPasteTarget(Configurable target, DefaultMutableTreeNode sourceNode) {
+    if (sourceNode == null) {
+      return false;
+    }
+    return isValidParent(target, (Configurable) sourceNode.getUserObject());
+  }
+
+
   protected boolean isValidPasteTarget(Configurable target) {
-    return (cutData != null &&
-      isValidParent(target, (Configurable) cutData.getUserObject())) ||
-      (copyData != null &&
-        isValidParent(target, (Configurable) copyData.getUserObject()));
+    return isValidPasteTarget(target, cutData) || isValidPasteTarget(target, copyData);
   }
 
   /**
@@ -680,7 +735,30 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
   }
 
   protected List<Action> buildAddActionsFor(final Configurable target) {
+    return buildAddActionsFor(target, null);
+  }
+
+
+  protected List<Action> buildAddActionsFor(final Configurable target, List<Action> peerInserts) {
     final ArrayList<Action> l = new ArrayList<>();
+
+    if (target instanceof AbstractConfigurable) {
+      final DefaultMutableTreeNode targetNode = getTreeNode(target);
+      if (targetNode != null) {
+        final DefaultMutableTreeNode parentNode = (DefaultMutableTreeNode) targetNode.getParent();
+        if (parentNode != null) {
+          l.add(buildAddAction((Configurable)parentNode.getUserObject(), target.getClass(), "Editor.ConfigureTree.add_duplicate", parentNode.getIndex(targetNode) + 1, target));
+
+          if (peerInserts != null) {
+            final Configurable parent = ((Configurable)parentNode.getUserObject());
+            for (final Class<? extends Buildable> newConfig : parent.getAllowableConfigureComponents()) {
+              peerInserts.add(buildAddAction(parent, newConfig, "Editor.ConfigureTree.add_peer", parentNode.getIndex(targetNode) + 1, null));
+            }
+          }
+        }
+      }
+    }
+
     for (final Class<? extends Buildable> newConfig :
       target.getAllowableConfigureComponents()) {
       l.add(buildAddAction(target, newConfig));
@@ -692,6 +770,7 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
         l.add(buildAddAction(target, newConfig));
       }
     }
+
     return l;
   }
 
@@ -705,7 +784,12 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
   }
 
   protected Action buildAddAction(final Configurable target, final Class<? extends Buildable> newConfig) {
-    return new AbstractAction(Resources.getString("Editor.ConfigureTree.add_component", getConfigureName(newConfig))) {
+    return buildAddAction(target, newConfig, "Editor.ConfigureTree.add_component", -1, null);
+  }
+
+
+  protected Action buildAddAction(final Configurable target, final Class<? extends Buildable> newConfig, String key, int index, final Configurable duplicate) {
+    return new AbstractAction(Resources.getString(key, getConfigureName(newConfig))) {
       private static final long serialVersionUID = 1L;
 
       @Override
@@ -720,14 +804,18 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
 
         if (ch != null) {
           final Configurable child = ch;
-          child.build(null);
+          child.build((duplicate != null) ? duplicate.getBuildElement(Builder.createNewDocument()) : null);
 
           if (child instanceof PieceSlot) {
             ((PieceSlot) child).updateGpId(GameModule.getGameModule());
           }
 
           if (child.getConfigurer() != null) {
-            if (insert(target, child, getTreeNode(target).getChildCount())) {
+            if (insert(target, child, (index < 0) ? getTreeNode(target).getChildCount() : index)) {
+              if (duplicate != null) {
+                updateGpIds(child);
+              }
+
               // expand the new node
               final TreePath path = new TreePath(getTreeNode(child).getPath());
               expandPath(path);
@@ -745,7 +833,10 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
             }
           }
           else {
-            insert(target, child, getTreeNode(target).getChildCount());
+            insert(target, child, (index < 0) ? getTreeNode(target).getChildCount() : index);
+            if (duplicate != null) {
+              updateGpIds(child);
+            }
           }
         }
       }
@@ -932,24 +1023,35 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
     ((DefaultTreeModel) getModel()).nodeChanged(newValue);
   }
 
+  /**
+   * Custom Tree Cell Renderer
+   * Change the font to italic if the Configurable held by the node for this cell has been edited.
+   */
   static class Renderer extends javax.swing.tree.DefaultTreeCellRenderer {
     private static final long serialVersionUID = 1L;
+    private Font plainFont;
+    private Font italicFont;
 
     @Override
     public Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean expanded, boolean leaf, int row, boolean hasFocus) {
-      if (value instanceof DefaultMutableTreeNode) {
-        final Configurable c =
-          (Configurable) ((DefaultMutableTreeNode) value).getUserObject();
-        if (c != null) {
-          leaf = c.getAllowableConfigureComponents().length == 0;
-          value = (c.getConfigureName() != null ? c.getConfigureName() : "") +
-            " [" + getConfigureName(c.getClass()) + "]";
+      final JLabel label = (JLabel) super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
+      if (plainFont == null) {
+        plainFont = label.getFont();
+      }
+      if (value instanceof ConfigureTreeNode) {
+        final ConfigureTreeNode c = (ConfigureTreeNode) value;
+        if (c.isEdited()) {
+          if (italicFont == null) {
+            final Font f = label.getFont();
+            italicFont = new Font(f.getFontName(), Font.ITALIC, f.getSize());
+          }
+          label.setFont(italicFont);
+        }
+        else {
+          label.setFont(plainFont);
         }
       }
-
-      return super.getTreeCellRendererComponent(
-        tree, value, sel, expanded, leaf, row, hasFocus
-      );
+      return label;
     }
   }
 
@@ -1058,7 +1160,7 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
       if (target.getConfigurer() != null) {
         final Action a = buildEditAction(target);
         if (a != null) {
-          a.actionPerformed(new ActionEvent(e.getSource(), ActionEvent.ACTION_PERFORMED, "Edit"));
+          a.actionPerformed(new ActionEvent(e.getSource(), ActionEvent.ACTION_PERFORMED, "Edit")); //NON-NLS
         }
       }
     }
@@ -1122,6 +1224,7 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
     if (remove(parent, target)) {
       insert(parent, target, 0);
     }
+    ((DefaultTreeModel) getModel()).nodeChanged(node);
   }
 
   /**
@@ -1214,9 +1317,11 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
     selected = null;
     final TreePath path = e.getPath();
     if (path != null) {
-      selected = (Configurable) ((DefaultMutableTreeNode) path.getLastPathComponent()).getUserObject();
+      final DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) path.getLastPathComponent();
+      selected = (Configurable) selectedNode.getUserObject();
       selectedRow = getRowForPath(path);
       updateEditMenu();
+      ((DefaultTreeModel) getModel()).nodeChanged(selectedNode);
     }
   }
 
@@ -1227,8 +1332,9 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
     pasteAction.setEnabled(selected != null && isValidPasteTarget(selected));
     moveAction.setEnabled(selected != null);
     searchAction.setEnabled(true);
-    propertiesAction.setEnabled(selected != null &&
-      selected.getConfigurer() != null);
+    // Check the cached Configurer in the TreeNode, not the Configurable as Configurable.getConfigurer()
+    // is very expensive and resets the Configurer causing label truncation issues in the JTree
+    propertiesAction.setEnabled(selected != null && selected.getConfigurer() != null);
     translateAction.setEnabled(selected != null);
   }
 
@@ -1339,12 +1445,12 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
       prefs.addOption(null, new BooleanConfigurer(SearchParameters.MATCH_NAMES,  null, true));
       prefs.addOption(null, new BooleanConfigurer(SearchParameters.MATCH_TYPES,  null, true));
       prefs.addOption(null, new BooleanConfigurer(SearchParameters.MATCH_ADVANCED, null, false));
-      prefs.addOption(null, new BooleanConfigurer(SearchParameters.MATCH_TRAITS,      null, false));
-      prefs.addOption(null, new BooleanConfigurer(SearchParameters.MATCH_EXPRESSIONS, null, false));
-      prefs.addOption(null, new BooleanConfigurer(SearchParameters.MATCH_PROPERTIES, null, false));
-      prefs.addOption(null, new BooleanConfigurer(SearchParameters.MATCH_KEYS,        null, false));
-      prefs.addOption(null, new BooleanConfigurer(SearchParameters.MATCH_MENUS, null, false));
-      prefs.addOption(null, new BooleanConfigurer(SearchParameters.MATCH_MESSAGES, null, false));
+      prefs.addOption(null, new BooleanConfigurer(SearchParameters.MATCH_TRAITS,      null, true));
+      prefs.addOption(null, new BooleanConfigurer(SearchParameters.MATCH_EXPRESSIONS, null, true));
+      prefs.addOption(null, new BooleanConfigurer(SearchParameters.MATCH_PROPERTIES, null, true));
+      prefs.addOption(null, new BooleanConfigurer(SearchParameters.MATCH_KEYS,        null, true));
+      prefs.addOption(null, new BooleanConfigurer(SearchParameters.MATCH_MENUS, null, true));
+      prefs.addOption(null, new BooleanConfigurer(SearchParameters.MATCH_MESSAGES, null, true));
 
       searchString = (String) prefs.getValue(SearchParameters.SEARCH_STRING);
       matchCase    = (Boolean)prefs.getValue(SearchParameters.MATCH_CASE);
@@ -1633,7 +1739,7 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
             if (anyChanges) {
               // Unless we're just continuing to the next match in an existing search, compute & display hit count
               final int matches = getNumMatches(searchParameters.getSearchString());
-              chat(matches + " " + Resources.getString("Editor.search_count") + searchParameters.getSearchString());
+              chat(matches + " " + Resources.getString("Editor.search_count") + noHTML(searchParameters.getSearchString()));
             }
 
             // Find first match
@@ -1649,7 +1755,7 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
               }
             }
             else {
-              chat(Resources.getString("Editor.search_none_found") + searchParameters.getSearchString());
+              chat(Resources.getString("Editor.search_none_found") + noHTML(searchParameters.getSearchString()));
             }
           }
         });
@@ -1882,27 +1988,37 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
         return false;
       }
 
-      p = Decorator.getInnermost(p); // Head to the innermost trait, which would be the BasicPiece in a regular piece i.e. the "top" of the list.
-      do {
+      // We're going to search Decorator from inner-to-outer (BasicPiece-on-out), so that user sees the traits hit in
+      // the same order they're listed in the PieceDefiner window. So we first traverse them in the "normal" direction
+      // outer to inner and make a list in the order we want to traverse it (for architectural reasons, just traversing
+      // with getOuter() would take us inside of prototypes inside a piece, which we don't want).
+      final List<GamePiece> pieces = new ArrayList<>();
+      pieces.add(p);
+      while (p instanceof Decorator) {
+        p = ((Decorator) p).getInner();
+        pieces.add(p);
+      }
+      Collections.reverse(pieces);
+
+      for (final GamePiece piece : pieces) {
         if (!protoskip) { // Skip the fake "Basic Piece" on a Prototype definition
           if (searchParameters.isMatchTraits()) {
-            if (p instanceof EditablePiece) {
-              final String desc = ((EditablePiece) p).getDescription();
+            if (piece instanceof EditablePiece) {
+              final String desc = ((EditablePiece) piece).getDescription();
               if ((desc != null) && checkString(desc, searchString)) {
                 return true;
               }
             }
           }
 
-          if (p instanceof SearchTarget) {
-            if (checkSearchTarget((SearchTarget)p, searchString)) {
+          if (piece instanceof SearchTarget) {
+            if (checkSearchTarget((SearchTarget)piece, searchString)) {
               return true;
             }
           }
         }
         protoskip = false;
-        p = (GamePiece)p.getProperty(Properties.OUTER); // Continue traversing traits list from inner to outer
-      } while (p != null);
+      }
 
       return false;
     }
@@ -1950,7 +2066,7 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
     private void hitCheck(String s, String searchString, String matchString, String item, String desc, String show, TargetProgress progress) {
       if (!StringUtils.isEmpty(s) && checkString(s, searchString)) {
         progress.checkShowTrait(matchString, item, desc);
-        chat("&nbsp;&nbsp;&nbsp;&nbsp;{" + show + "} " + s); //NON-NLS
+        chat("&nbsp;&nbsp;&nbsp;&nbsp;{" + show + "} " + noHTML(s)); //NON-NLS
       }
     }
 
@@ -1983,22 +2099,22 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
 
       final String name = (c.getConfigureName() != null ? c.getConfigureName() : "") +
         " [" + getConfigureName(c.getClass()) + "]";
-      final String matchString = "<b><u>Matches for " + name + ": </u></b>";
+      final String matchString = "<b><u>Matches for " + noHTML(name) + ": </u></b>"; //NON-NLS
 
       final SearchTarget st = (SearchTarget) c;
       final String item = getConfigureName(c.getClass());
 
       final TargetProgress progress = new TargetProgress();
 
-      stringListHits(searchParameters.isMatchNames(), Arrays.asList(c.getConfigureName()), searchString, matchString, item, "", "Name", progress);
-      stringListHits(searchParameters.isMatchTypes(), Arrays.asList(item),                 searchString, matchString, item, "", "Type", progress);
+      stringListHits(searchParameters.isMatchNames(), Arrays.asList(c.getConfigureName()), searchString, matchString, item, "", "Name", progress); //NON-NLS
+      stringListHits(searchParameters.isMatchTypes(), Arrays.asList(item),                 searchString, matchString, item, "", "Type", progress); //NON-NLS
 
-      stringListHits(searchParameters.isMatchExpressions(), st.getExpressionList(),      searchString, matchString, item, "", "Expression",    progress);
-      stringListHits(searchParameters.isMatchProperties(),  st.getPropertyList(),        searchString, matchString, item, "", "Property",      progress);
-      stringListHits(searchParameters.isMatchMenus(),       st.getMenuTextList(),        searchString, matchString, item, "", "UI Text",       progress);
-      stringListHits(searchParameters.isMatchMessages(),    st.getFormattedStringList(), searchString, matchString, item, "", "Message/Field", progress);
+      stringListHits(searchParameters.isMatchExpressions(), st.getExpressionList(),      searchString, matchString, item, "", "Expression",    progress); //NON-NLS
+      stringListHits(searchParameters.isMatchProperties(),  st.getPropertyList(),        searchString, matchString, item, "", "Property",      progress); //NON-NLS
+      stringListHits(searchParameters.isMatchMenus(),       st.getMenuTextList(),        searchString, matchString, item, "", "UI Text",       progress); //NON-NLS
+      stringListHits(searchParameters.isMatchMessages(),    st.getFormattedStringList(), searchString, matchString, item, "", "Message/Field", progress); //NON-NLS
 
-      keyListHits(searchParameters.isMatchKeys(),           st.getNamedKeyStrokeList(),  searchString, matchString, item, "", "KeyCommand",    progress);
+      //NON-NLSkeyListHits(searchParameters.isMatchKeys(),           st.getNamedKeyStrokeList(),  searchString, matchString, item, "", "KeyCommand",    progress);
     }
 
     /**
@@ -2033,42 +2149,44 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
         " [" + getConfigureName(c.getClass()) + "]";
 
       final TargetProgress progress = new TargetProgress();
-      final String matchString = "<b><u>Matches for " + name + ": </u></b>";
+      final String matchString = "<b><u>Matches for " + name + ": </u></b>"; //NON-NLS
 
-      if (protoskip) {
-        stringListHits(searchParameters.isMatchNames(), Arrays.asList(c.getConfigureName()),           searchString, matchString, "Prototype Definition", "", "Name", progress);
-        stringListHits(searchParameters.isMatchTypes(), Arrays.asList(getConfigureName(c.getClass())), searchString, matchString, "Prototype Definition", "", "Type", progress);
-      }
+      stringListHits(searchParameters.isMatchNames(), Arrays.asList(c.getConfigureName()),           searchString, matchString, protoskip ? "Prototype Definition" : "Game Piece", "", "Name", progress); //NON-NLS
+      stringListHits(searchParameters.isMatchTypes(), Arrays.asList(getConfigureName(c.getClass())), searchString, matchString, protoskip ? "Prototype Definition" : "Game Piece", "", "Type", progress); //NON-NLS
 
       // We're going to search Decorator from inner-to-outer (BasicPiece-on-out), so that user sees the traits hit in
-      // the same order they're listed in the PieceDefiner window.
+      // the same order they're listed in the PieceDefiner window. So we first traverse them in the "normal" direction
+      // outer to inner and make a list in the order we want to traverse it (for architectural reasons, just traversing
+      // with getOuter() would take us inside of prototypes inside a piece, which we don't want).
+      final List<GamePiece> pieces = new ArrayList<>();
+      pieces.add(p);
+      while (p instanceof Decorator) {
+        p = ((Decorator) p).getInner();
+        pieces.add(p);
+      }
+      Collections.reverse(pieces);
 
-      p = Decorator.getInnermost(p); // Head to the innermost trait, which would be the BasicPiece in a regular piece i.e. the "top" of the list.
-      do {
-        if (!protoskip && (p instanceof EditablePiece) && (p instanceof Decorator)) { // Skip the fake "Basic Piece" on a Prototype definition
-          final String desc = ((EditablePiece) p).getDescription();
-          final Decorator d = (Decorator)p;
+      for (final GamePiece piece : pieces) {
+        if (!protoskip && (piece instanceof EditablePiece) && (piece instanceof Decorator)) { // Skip the fake "Basic Piece" on a Prototype definition
+          final String desc = ((EditablePiece) piece).getDescription();
+          final Decorator d = (Decorator)piece;
           progress.startNewTrait();    // A new trait, so reset our "trait progress".
 
           if (searchParameters.isMatchTraits()) {
             if ((desc != null) && checkString(desc, searchString)) {
-              progress.checkShowTrait(matchString, "Trait", desc);
+              progress.checkShowTrait(matchString, "Trait", desc); //NON-NLS
             }
           }
 
-          stringListHits(searchParameters.isMatchNames(), Arrays.asList(c.getConfigureName()),           searchString, matchString, "Trait", desc, "Name", progress);
-          stringListHits(searchParameters.isMatchTypes(), Arrays.asList(getConfigureName(c.getClass())), searchString, matchString, "Trait", desc, "Type", progress);
+          stringListHits(searchParameters.isMatchExpressions(), d.getExpressionList(), searchString, matchString, "Trait", desc, "Expression", progress); //NON-NLS
+          stringListHits(searchParameters.isMatchProperties(), d.getPropertyList(), searchString, matchString, "Trait", desc, "Property", progress); //NON-NLS
+          stringListHits(searchParameters.isMatchMenus(), d.getMenuTextList(), searchString, matchString, "Trait", desc, "UI Text", progress); //NON-NLS
+          stringListHits(searchParameters.isMatchMessages(), d.getFormattedStringList(), searchString, matchString, "Trait", desc, "Message/Field", progress); //NON-NLS
 
-          stringListHits(searchParameters.isMatchExpressions(), d.getExpressionList(), searchString, matchString, "Trait", desc, "Expression", progress);
-          stringListHits(searchParameters.isMatchProperties(), d.getPropertyList(), searchString, matchString, "Trait", desc, "Property", progress);
-          stringListHits(searchParameters.isMatchMenus(), d.getMenuTextList(), searchString, matchString, "Trait", desc, "UI Text", progress);
-          stringListHits(searchParameters.isMatchMessages(), d.getFormattedStringList(), searchString, matchString, "Trait", desc, "Message/Field", progress);
-
-          keyListHits(searchParameters.isMatchKeys(), d.getNamedKeyStrokeList(), searchString, matchString, "Trait", desc, "KeyCommand", progress);
+          keyListHits(searchParameters.isMatchKeys(), d.getNamedKeyStrokeList(), searchString, matchString, "Trait", desc, "KeyCommand", progress); //NON-NLS
         }
         protoskip = false;
-        p = (GamePiece)p.getProperty(Properties.OUTER); // Continue traversing traits list from inner to outer
-      } while (p != null);
+      }
     }
 
     /**
@@ -2083,6 +2201,337 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
       }
       else {
         return target.toLowerCase().contains(searchString.toLowerCase());
+      }
+    }
+  }
+
+  /**
+   * Called when the Configurable held by a node has been edited.
+   * Set the edit status and re-build the Jtree label
+   * @param target Edited Configurable
+   */
+  public void nodeEdited(Configurable target) {
+    final ConfigureTreeNode node = (ConfigureTreeNode) getTreeNode(target);
+    node.setEdited(true);
+    ((DefaultTreeModel) getModel()).nodeChanged(node);
+  }
+
+  /**
+   * Custom TreeNode
+   *  - Determine description for the node
+   *  - Track this node has been edited
+   */
+  private static class ConfigureTreeNode extends DefaultMutableTreeNode {
+    private static final long serialVersionUID = 1L;
+
+    private boolean edited;
+
+    public ConfigureTreeNode(Object userObject) {
+      super(userObject);
+      edited = false;
+    }
+
+    @Override
+    public String toString() {
+      String description = "";
+
+      final Configurable c =  (Configurable) getUserObject();
+      if (c != null) {
+        description = (c.getConfigureName() != null ? c.getConfigureName() : "");
+        if (c instanceof GlobalProperty) {
+          final String desc = ((GlobalProperty)c).getDescription();
+          if (!desc.isEmpty()) {
+            description += " - " + desc;
+          }
+        }
+        if (c instanceof GlobalTranslatableMessage) {
+          final String desc = ((GlobalTranslatableMessage)c).getDescription();
+          if (!desc.isEmpty()) {
+            description += " - " + desc;
+          }
+        }
+        description += " [" + getConfigureName(c.getClass()) + "]";
+      }
+      return description;
+    }
+
+    public boolean isEdited() {
+      return edited;
+    }
+
+    public void setEdited(boolean edited) {
+      this.edited = edited;
+    }
+
+    /**
+     * Reset the edit flags on this node and all Children of this node
+     */
+    private void resetEditFlags() {
+      setEdited(false);
+      resetChildEditFlags();
+    }
+
+    /**
+     * Reset the edit flags on all Children of this node
+     */
+    public void resetChildEditFlags() {
+      if (getChildCount() > 0) {
+        for (final TreeNode node : children) {
+          ((ConfigureTreeNode) node).resetEditFlags();
+        }
+      }
+    }
+  }
+
+  /**
+   * Allows ExtensionEditor to override and control what indexes are allowed
+   */
+  public int checkMinimumIndex(DefaultMutableTreeNode targetNode, int index) {
+    return index;
+  }
+
+  /**
+   * Tree Transfer Handler provides drag-and-drop support for editor items. Heavily adapted from Oracle "tutorial" and
+   * various StackOverflow and Code Ranch articles, but yeah, google ftw. (Brian Reynolds Apr 4 2021)
+   */
+  class TreeTransferHandler extends TransferHandler {
+    private static final long serialVersionUID = 1L;
+
+    DataFlavor nodesFlavor;
+    DataFlavor[] flavors = new DataFlavor[1];
+
+    public TreeTransferHandler() {
+      try {
+        final String mimeType = DataFlavor.javaJVMLocalObjectMimeType +
+          ";class=\"" +
+          DefaultMutableTreeNode[].class.getName() +
+          "\"";
+        nodesFlavor = new DataFlavor(mimeType);
+        flavors[0] = nodesFlavor;
+      }
+      catch (ClassNotFoundException e) {
+        System.out.println("Class Not Found: " + e.getMessage()); //NON-NLS
+      }
+    }
+
+    /**
+     * @param support info on the drag/drop in question (called continuously as item is dragged over various targets)
+     * @return true if drag/drop is "legal", false if the "No Drag For You!" icon should be shown
+     */
+    @Override
+    public boolean canImport(TransferHandler.TransferSupport support) {
+      if (!support.isDrop()) {
+        return false;
+      }
+      support.setShowDropLocation(true);
+      if (!support.isDataFlavorSupported(nodesFlavor)) {
+        return false;
+      }
+
+      // Do not allow a drop on the drag source selections.
+      final JTree.DropLocation dl = (JTree.DropLocation)support.getDropLocation();
+      final JTree tree = (JTree)support.getComponent();
+      final int dropRow = tree.getRowForPath(dl.getPath());
+      final int[] selRows = tree.getSelectionRows();
+      if (selRows == null) return false;
+      for (final int selRow : selRows) {
+        if (selRow == dropRow) {
+          return false;
+        }
+      }
+
+      // Only allow drag to a valid parent (same logic as our regular cut-and-paste)
+      final TreePath dest = dl.getPath();
+      final DefaultMutableTreeNode targetNode = (DefaultMutableTreeNode)dest.getLastPathComponent();
+      final TreePath path = tree.getPathForRow(selRows[0]);
+      final DefaultMutableTreeNode firstNode = (DefaultMutableTreeNode)path.getLastPathComponent();
+      final Configurable target = (Configurable)targetNode.getUserObject();
+      if (!isValidPasteTarget(target, firstNode)) {
+        return false;
+      }
+
+      // If we're editing an extension, components owned by the moduel can never be dragged
+      if (tree instanceof ExtensionTree) {
+        final ExtensionTree xTree = (ExtensionTree) tree;
+        if (!xTree.isEditable(firstNode)) {
+          return false;
+        }
+      }
+
+      final int action = support.getDropAction();
+      if (action == MOVE) {
+        // Don't allow move (cut) to our own descendant
+        return !targetNode.isNodeAncestor(firstNode);
+      }
+
+      return true;
+    }
+
+    /**
+     * @param c The component being dragged
+     * @return Package describing data to be moved/copied
+     */
+    @Override
+    protected Transferable createTransferable(JComponent c) {
+      final JTree tree = (JTree)c;
+      final TreePath[] paths = tree.getSelectionPaths();
+      if (paths != null) {
+        // Array w/ node to be transferred
+        final DefaultMutableTreeNode node = (DefaultMutableTreeNode)paths[0].getLastPathComponent();
+        final DefaultMutableTreeNode[] nodes = new DefaultMutableTreeNode[1];
+        nodes[0] = node;
+        return new NodesTransferable(nodes);
+      }
+      return null;
+    }
+
+    /**
+     * Nothing to do here, as we do our removal in the import stage (original algorithm made a copy and then deleted
+     * the source, but that would make our "unique ID" code barf a mighty barf)
+     */
+    @Override
+    protected void exportDone(JComponent source, Transferable data, int action) {
+      //
+    }
+
+    @Override
+    public int getSourceActions(JComponent c) {
+      return COPY_OR_MOVE;
+    }
+
+    /**
+     * Actually performs the data transfer for a move or copy operation
+     * @param support Info on the drag being performed
+     * @return true if drag/drop operation was successful
+     */
+    @Override
+    public boolean importData(TransferHandler.TransferSupport support) {
+      if (!canImport(support)) {
+        return false;
+      }
+
+      // Extract transfer data.
+      DefaultMutableTreeNode[] nodes = null;
+      try {
+        final Transferable t = support.getTransferable();
+        nodes = (DefaultMutableTreeNode[])t.getTransferData(nodesFlavor);
+      }
+      catch (UnsupportedFlavorException ufe) {
+        System.out.println("Unsupported Flavor: " + ufe.getMessage()); //NON-NLS
+      }
+      catch (java.io.IOException ioe) {
+        System.out.println("I/O error: " + ioe.getMessage()); //NON-NLS
+      }
+
+      if (nodes == null) {
+        return false;
+      }
+
+      // Get drop location info.
+      final JTree.DropLocation dl = (JTree.DropLocation)support.getDropLocation();
+      final TreePath dest = dl.getPath();
+      final DefaultMutableTreeNode targetNode = (DefaultMutableTreeNode)dest.getLastPathComponent();
+      final Configurable target = (Configurable)targetNode.getUserObject();
+      final DefaultMutableTreeNode sourceNode = nodes[0];
+
+      // What new index shall we drop it at? -1 means it was dropped directly on the parent item.
+      int childIndex = dl.getChildIndex();
+      if (childIndex < 0) {
+        if (sourceNode.getParent() == targetNode) {
+          childIndex = 0; // If we've been dragged up to our same parent then drop at top of list.
+        }
+        else {
+          childIndex = targetNode.getChildCount(); // Otherwise we drop it at the bottom
+        }
+      }
+
+      // This is for Extension editor to override
+      childIndex = checkMinimumIndex(targetNode, childIndex);
+
+      if (childIndex > targetNode.getChildCount()) {
+        childIndex = targetNode.getChildCount();
+      }
+
+      if ((support.getDropAction() & MOVE) == MOVE) {
+        if (!targetNode.isNodeAncestor(sourceNode)) {
+          // Here's we're "moving", so therefore "cutting" the source object from its original location (plain drag)
+          final Configurable cutObj = (Configurable) sourceNode.getUserObject();
+          final Configurable convertedCutObj = convertChild(target, cutObj);
+
+          if (sourceNode.getParent() == targetNode) {
+            final int oldIndex = targetNode.getIndex(sourceNode);
+            //BR// If we're being dragged to our same parent, but lower down the list, adjust index to account for the
+            //BR// fact we're about to be cut from it. Such humiliations are the price of keeping the Unique ID manager
+            //BR// copacetic.
+            if (childIndex > oldIndex) {
+              childIndex--;
+            }
+            // If just moving to same place, report success without doing anything.
+            if (childIndex == oldIndex) {
+              return true;
+            }
+          }
+
+          if (remove(getParent(sourceNode), cutObj)) {
+            insert(target, convertedCutObj, childIndex);
+          }
+        }
+      }
+      else {
+        // Or, if we're actually making a new copy (ctrl-drag)
+        final Configurable copyBase = (Configurable) sourceNode.getUserObject();
+        Configurable clone = null;
+        try {
+          clone = convertChild(target, copyBase.getClass().getConstructor().newInstance());
+        }
+        catch (Throwable t) {
+          ReflectionUtils.handleNewInstanceFailure(t, copyBase.getClass());
+        }
+
+        if (clone != null) {
+          clone.build(copyBase.getBuildElement(Builder.createNewDocument()));
+          insert(target, clone, childIndex);
+          updateGpIds(clone);
+        }
+      }
+
+      return true;
+    }
+
+    @Override
+    public String toString() {
+      return getClass().getName();
+    }
+
+    /**
+     * Self-important data blurp that describes a potential drag/drop source. But there's stuff
+     * about flavor, and who doesn't like flavor?
+     */
+    public class NodesTransferable implements Transferable {
+      DefaultMutableTreeNode[] nodes;
+
+      public NodesTransferable(DefaultMutableTreeNode[] nodes) {
+        this.nodes = nodes;
+      }
+
+      @SuppressWarnings("NullableProblems") //BR// Because I just have no idea
+      @Override
+      public Object getTransferData(DataFlavor flavor)
+        throws UnsupportedFlavorException {
+        if (!isDataFlavorSupported(flavor)) {
+          throw new UnsupportedFlavorException(flavor);
+        }
+        return nodes;
+      }
+
+      @Override
+      public DataFlavor[] getTransferDataFlavors() {
+        return flavors;
+      }
+
+      @Override
+      public boolean isDataFlavorSupported(DataFlavor flavor) {
+        return nodesFlavor.equals(flavor);
       }
     }
   }

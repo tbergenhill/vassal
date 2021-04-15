@@ -38,18 +38,22 @@ import javax.swing.JScrollPane;
 import javax.swing.JToolBar;
 import javax.swing.KeyStroke;
 
-import org.apache.commons.lang3.SystemUtils;
-
-import VASSAL.build.GameModule;
-import VASSAL.build.module.Documentation;
-import VASSAL.build.module.documentation.HelpWindow;
+import VASSAL.build.module.GameState;
+import VASSAL.command.AlertCommand;
+import VASSAL.command.Command;
 import VASSAL.configure.ConfigureTree;
+import VASSAL.configure.RefreshPredefinedSetupsDialog;
 import VASSAL.configure.RemoveUnusedImagesDialog;
 import VASSAL.configure.SaveAction;
 import VASSAL.configure.SaveAsAction;
 import VASSAL.configure.ShowHelpAction;
 import VASSAL.configure.ValidationReport;
 import VASSAL.configure.ValidationReportDialog;
+import org.apache.commons.lang3.SystemUtils;
+
+import VASSAL.build.GameModule;
+import VASSAL.build.module.Documentation;
+import VASSAL.build.module.documentation.HelpWindow;
 import VASSAL.i18n.Resources;
 import VASSAL.tools.ApplicationIcons;
 import VASSAL.tools.ErrorDialog;
@@ -72,7 +76,7 @@ public abstract class EditorWindow extends JFrame {
   protected JMenuItem componentHelpItem;
 
   protected final HelpWindow helpWindow = new HelpWindow(Resources.getString("Editor.ModuleEditor.reference_manual"), //$NON-NLS-1$
-      null);
+    null);
 
   protected ConfigureTree tree;        // The Configure Tree we are editing
 
@@ -232,6 +236,25 @@ public abstract class EditorWindow extends JFrame {
       }
     });
 
+    mm.addAction("Editor.ModuleEditor.refresh_predefined", new AbstractAction(Resources.getString(
+      "Editor.ModuleEditor.refresh_predefined")) { //$NON-NLS-1$
+      private static final long serialVersionUID = 1L;
+
+      @Override
+      public void actionPerformed(ActionEvent e) {
+        final GameState gs = GameModule.getGameModule().getGameState();
+        if (gs.isGameStarted()) {
+          //If a game is started log warning and stop
+          final Command ac = new AlertCommand(Resources.getString("GameRefresher.game_started_in_editor"));
+          ac.execute();
+        }
+        else {
+          new RefreshPredefinedSetupsDialog(EditorWindow.this).setVisible(true);
+        }
+      }
+    });
+
+
     try {
       final URL url = new File(Documentation.getDocumentationBaseDir(), "ReferenceManual/index.html").toURI().toURL();
       mm.addAction("Editor.ModuleEditor.table_of_contents", new ShowHelpAction("Editor.ModuleEditor.table_of_contents", url, null));
@@ -250,7 +273,7 @@ public abstract class EditorWindow extends JFrame {
 
     try {
       final URL url = new File(Documentation.getDocumentationBaseDir(), "designerguide/designerguide.pdf").toURI()
-          .toURL();
+        .toURL();
       mm.addAction("Editor.ModuleEditor.designer_guide", new ShowHelpAction("Editor.ModuleEditor.designer_guide", url, null));
     }
     catch (MalformedURLException e) {
@@ -283,7 +306,7 @@ public abstract class EditorWindow extends JFrame {
 
     try {
       final URL url = new File(Documentation.getDocumentationBaseDir(), "ReferenceManual/GamePiece.html").toURI()
-          .toURL();
+        .toURL();
       mm.addAction("Editor.ModuleEditor.game_pieces_and_traits", new ShowHelpAction("Editor.ModuleEditor.game_pieces_and_traits", url, null));
     }
     catch (MalformedURLException e) {
@@ -292,7 +315,7 @@ public abstract class EditorWindow extends JFrame {
 
     try {
       final URL url = new File(Documentation.getDocumentationBaseDir(), "ReferenceManual/Expression.html").toURI()
-          .toURL();
+        .toURL();
       mm.addAction("Editor.ModuleEditor.expressions", new ShowHelpAction("Editor.ModuleEditor.expressions", url, null));
     }
     catch (MalformedURLException e) {
@@ -301,7 +324,7 @@ public abstract class EditorWindow extends JFrame {
 
     try {
       final URL url = new File(Documentation.getDocumentationBaseDir(), "ReferenceManual/Properties.html").toURI()
-          .toURL();
+        .toURL();
 
       //BR// I dunno why this different pattern was used here. But "thangs warn't right" in general (this was the buggiest entry in the 3.2.17 version of this, and the gif thing had no noticeable effect) so I've just made it work like the others.
 
@@ -325,7 +348,7 @@ public abstract class EditorWindow extends JFrame {
     panel.setPreferredSize(new Dimension(250, 400));
 
     scrollPane = new JScrollPane(panel, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-        JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+      JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 
     add(scrollPane, BorderLayout.CENTER);
     pack();
@@ -337,8 +360,8 @@ public abstract class EditorWindow extends JFrame {
    */
   boolean isTempFile(String name) {
     return name == null ||
-           name.isEmpty() ||
-           ("tmp".equals(name.substring(0, 3)) && name.contains(".zip"));  //NON-NLS
+      name.isEmpty() ||
+      ("tmp".equals(name.substring(0, 3)) && name.contains(".zip"));  //NON-NLS
   }
 
   void setModuleName(String name) {

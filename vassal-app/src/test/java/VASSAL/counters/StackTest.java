@@ -1,9 +1,9 @@
 package VASSAL.counters;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 import VASSAL.build.module.Map;
@@ -12,12 +12,8 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.junit.jupiter.api.Test;
 
-@RunWith(MockitoJUnitRunner.class)
 public class StackTest {
 
   @Test
@@ -505,21 +501,6 @@ public class StackTest {
     assertEquals(gamePiece2, pieces.get(2));
   }
 
-  @Test(expected = UnsupportedOperationException.class)
-  public void asListShouldReturnUnmodifiableList() {
-    // prepare
-    final GamePiece gamePiece0 = mock(GamePiece.class);
-    Stack s = new Stack();
-    s.add(gamePiece0);
-    final List<GamePiece> pieces = s.asList();
-
-    // run - trying to modify the list should throw
-    pieces.add(gamePiece0);
-
-    // assert - should not get here
-    Assert.fail();
-  }
-
   @Test
   public void asListShouldReturnDefensiveList() {
     // prepare
@@ -538,5 +519,4 @@ public class StackTest {
     assertEquals(gamePiece0, pieces.get(0));
     assertEquals(gamePiece1, pieces.get(1));
   }
-
 }

@@ -172,6 +172,12 @@ public class Console {
       if (propValue != null) {
         show("[" + property + "]: " + propValue.getPropertyValue());
       }
+      else {
+        final String propVal = (String)GameModule.getGameModule().getProperty(property);
+        if (propVal != null) {
+          show("[" + property + "]: " + propVal);
+        }
+      }
     }
     else if (matches("set", option)) { //NON-NLS
       final MutableProperty.Impl propValue = (MutableProperty.Impl) GameModule.getGameModule().getMutableProperty(property);
@@ -226,8 +232,8 @@ public class Console {
     // it will not accept console commands.
     final Logger log = GameModule.getGameModule().getLogger();
     if (log instanceof BasicLogger) {
-      if (((BasicLogger)log).isMultiPlayer() || GameModule.getGameModule().getPlayerRoster().isMultiPlayer()) {
-        show("<b>Console commands not allowed in multiplayer games.</b>"); //NON-NLS
+      if (((BasicLogger)log).isMultiPlayer() || GameModule.getGameModule().isMultiPlayer()) {
+        show("|<b>Console commands not allowed in multiplayer games.</b>"); //NON-NLS
         return false;
       }
     }

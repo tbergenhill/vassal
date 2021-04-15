@@ -231,7 +231,11 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
   protected StackMetrics metrics;
   protected Dimension edgeBuffer = new Dimension(0, 0);
   protected Color bgColor = Color.white;
-  protected LaunchButton launchButton; // Legacy for binary signature
+
+  /** @deprecated use launch from the superclass */
+  @Deprecated(since = "2021-04-03", forRemoval = true)
+  protected LaunchButton launchButton;
+
   protected boolean useLaunchButton = false;
   protected boolean useLaunchButtonEdit = false;
   protected String markMovedOption = GlobalOptions.ALWAYS;
@@ -553,7 +557,7 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
   public void build(Element e) {
     setButtonTextKey(BUTTON_NAME); // Uses non-standard "button text" key
 
-    launchButton = makeLaunchButton(
+    setLaunchButton(makeLaunchButton(
       "", //NON-NLS
       Resources.getString("Editor.Map.map"), //NON-NLS
       "/images/map.gif", //NON-NLS
@@ -565,7 +569,9 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
           }
         }
       }
-    );
+    ));
+    launchButton = getLaunchButton(); // for compatibility
+
     getLaunchButton().setEnabled(false);
     getLaunchButton().setVisible(false);
 
@@ -869,7 +875,7 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
       g.removeCommandEncoder(picker);
       g.getGameState().addGameComponent(picker);
     }
-    PlayerRoster.removeSideChangeListener(this);
+    g.addSideChangeListenerToPlayerRoster(this);
   }
 
   /**
@@ -1603,6 +1609,15 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
   }
 
   /**
+   * Remove the most recently pushed mouse listener only if it is the supplied listener
+   * @param l Listener
+   */
+  public void popMouseListener(MouseListener l) {
+    if (!mouseListenerStack.isEmpty() && mouseListenerStack.get(mouseListenerStack.size() - 1).equals(l)) {
+      popMouseListener();
+    }
+  }
+  /**
    * @param e MouseEvent
    */
   @Override
@@ -2000,7 +2015,9 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
    * Repaints the map.
    */
   public void repaint() {
-    theMap.repaint();
+    if (!GameModule.getGameModule().isLoadOverSemaphore()) {
+      theMap.repaint();
+    }
   }
 
   /**
@@ -2467,6 +2484,7 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
   @Override
   public Object getProperty(Object key) {
     final Object value;
+
     final MutableProperty p = propsContainer.getMutableProperty(String.valueOf(key));
     if (p != null) {
       value = p.getPropertyValue();
@@ -2562,84 +2580,86 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
     final GameModule g = GameModule.getGameModule();
 
     if (show) {
-      if (shouldDockIntoMainWindow()) {
-        // kludge for modules which still use mainWindowDock
-        // remove this when mainWindowDock is removed
-        if (mainWindowDock != null && splitPane == null) {
-          splitPane = new SplitPane(
-            SplitPane.VERTICAL_SPLIT,
-            mainWindowDock.getTopComponent(),
-            mainWindowDock.getBottomComponent()
-          );
-          splitPane.setResizeWeight(0.0);
-
-          final Container mwdpar = mainWindowDock.getParent();
-          mwdpar.remove(mainWindowDock);
-          mwdpar.add(splitPane);
-        }
-
-        if (splitPane != null) {
-          // If we're docked to the main window, check the various player preferences w/r/t remembering desired window height.
-          // The window *width* has already been established, so we don't touch it here.
-          final PlayerWindow window = g.getPlayerWindow();
-          final Rectangle screen = SwingUtils.getScreenBounds(window);
-          final Prefs p = Prefs.getGlobalPrefs();
-
-          final boolean remember = Boolean.TRUE.equals(p.getOption(MAIN_WINDOW_REMEMBER).getValue());
-          final int h = remember ? ((Integer) p.getOption(MAIN_WINDOW_HEIGHT).getValue()) : -1;
-
-          window.setSize(window.getWidth(), (h > 0) ? h : screen.height);
-
-          splitPane.showBottom();
-
-          //BR// Force the divider to the Chatter's "preferred height"
-          final int divider = g.getChatter().getPreferredSize().height;
-          splitPane.setDividerLocation(divider);
-
+      if (!g.isLoadOverSemaphore()) {
+        if (shouldDockIntoMainWindow()) {
           // kludge for modules which still use mainWindowDock
           // remove this when mainWindowDock is removed
-          if (mainWindowDock != null) {
-            splitPane.setDividerSize(5);
+          if (mainWindowDock != null && splitPane == null) {
+            splitPane = new SplitPane(
+              SplitPane.VERTICAL_SPLIT,
+              mainWindowDock.getTopComponent(),
+              mainWindowDock.getBottomComponent()
+            );
+            splitPane.setResizeWeight(0.0);
+
+            final Container mwdpar = mainWindowDock.getParent();
+            mwdpar.remove(mainWindowDock);
+            mwdpar.add(splitPane);
           }
 
-          // ensure that the splitter has the full range of motion
-          splitPane.getTopComponent().setMinimumSize(new Dimension(0, 0));
-          splitPane.getBottomComponent().setMinimumSize(new Dimension(0, 0));
-        }
+          if (splitPane != null) {
+            // If we're docked to the main window, check the various player preferences w/r/t remembering desired window height.
+            // The window *width* has already been established, so we don't touch it here.
+            final PlayerWindow window = g.getPlayerWindow();
+            final Rectangle screen = SwingUtils.getScreenBounds(window);
+            final Prefs p = Prefs.getGlobalPrefs();
 
-        if (toolBar.getParent() == null) {
-          g.getToolBar().addSeparator();
-          g.getToolBar().add(toolBar);
-        }
-      }
-      else {
-        if (SwingUtilities.getWindowAncestor(theMap) == null) {
-          final Window topWindow = createParentFrame();
-          topWindow.addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(WindowEvent e) {
-              if (useLaunchButton) {
-                topWindow.setVisible(false);
-              }
-              else {
-                g.getGameState().setup(false);
-              }
+            final boolean remember = Boolean.TRUE.equals(p.getOption(MAIN_WINDOW_REMEMBER).getValue());
+            final int h = remember ? ((Integer) p.getOption(MAIN_WINDOW_HEIGHT).getValue()) : -1;
+
+            window.setSize(window.getWidth(), (h > 0) ? h : screen.height);
+
+            splitPane.showBottom();
+
+            //BR// Force the divider to the Chatter's "preferred height"
+            final int divider = g.getChatter().getPreferredSize().height;
+            splitPane.setDividerLocation(divider);
+
+            // kludge for modules which still use mainWindowDock
+            // remove this when mainWindowDock is removed
+            if (mainWindowDock != null) {
+              splitPane.setDividerSize(5);
             }
-          });
-          ((RootPaneContainer) topWindow).getContentPane().add("North", getToolBar()); //$NON-NLS-1$
-          ((RootPaneContainer) topWindow).getContentPane().add("Center", layeredPane); //$NON-NLS-1$
-          topWindow.setSize(600, 400);
-          final PositionOption option =
-            new PositionOption(PositionOption.key + getIdentifier(), topWindow);
-          g.getPrefs().addOption(option);
-        }
-        theMap.getTopLevelAncestor().setVisible(!useLaunchButton);
-        theMap.revalidate();
-      }
 
-      for (final Board b : boards) {
-        if (!b.getAllDescendantComponentsOf(ZoneHighlight.class).isEmpty()) {
-          b.setCacheGrid(false);
+            // ensure that the splitter has the full range of motion
+            splitPane.getTopComponent().setMinimumSize(new Dimension(0, 0));
+            splitPane.getBottomComponent().setMinimumSize(new Dimension(0, 0));
+          }
+
+          if (toolBar.getParent() == null) {
+            g.getToolBar().addSeparator();
+            g.getToolBar().add(toolBar);
+          }
+        }
+        else {
+          if (SwingUtilities.getWindowAncestor(theMap) == null) {
+            final Window topWindow = createParentFrame();
+            topWindow.addWindowListener(new WindowAdapter() {
+              @Override
+              public void windowClosing(WindowEvent e) {
+                if (useLaunchButton) {
+                  topWindow.setVisible(false);
+                }
+                else {
+                  g.getGameState().setup(false);
+                }
+              }
+            });
+            ((RootPaneContainer) topWindow).getContentPane().add("North", getToolBar()); //$NON-NLS-1$
+            ((RootPaneContainer) topWindow).getContentPane().add("Center", layeredPane); //$NON-NLS-1$
+            topWindow.setSize(600, 400);
+            final PositionOption option =
+              new PositionOption(PositionOption.key + getIdentifier(), topWindow);
+            g.getPrefs().addOption(option);
+          }
+          theMap.getTopLevelAncestor().setVisible(!useLaunchButton);
+          theMap.revalidate();
+        }
+
+        for (final Board b : boards) {
+          if (!b.getAllDescendantComponentsOf(ZoneHighlight.class).isEmpty()) {
+            b.setCacheGrid(false);
+          }
         }
       }
     }
@@ -2647,45 +2667,52 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
       pieces.clear();
       boards.clear();
 
-      if (shouldDockIntoMainWindow()) {
-        if (splitPane != null) {
-          // If this is a docked-to-main-window map, AND it's presently visible, save our window size preferences
-          if (splitPane.isBottomVisible()) {
-            final Dimension d = g.getPlayerWindow().getSize();
-            final GlobalPrefs p = (GlobalPrefs) Prefs.getGlobalPrefs();
-            final PlayerWindow window = g.getPlayerWindow();
-            final Rectangle screen = SwingUtils.getScreenBounds(window);
-            final int w = window.getWidth();
-            final int h;
-            if (Boolean.TRUE.equals(p.getOption(MAIN_WINDOW_REMEMBER).getValue())) {
-              p.setDisableAutoWrite(true);
-              p.getOption(MAIN_WINDOW_HEIGHT).setValue(d.height);
-              p.getOption(MAIN_WINDOW_WIDTH).setValue(d.width);
-              p.saveGlobal();
-              p.setDisableAutoWrite(false);
+      if (!g.isLoadOverSemaphore()) {
+        if (shouldDockIntoMainWindow()) {
+          if (splitPane != null) {
+            // If this is a docked-to-main-window map, AND it's presently visible, save our window size preferences
+            if (splitPane.isBottomVisible()) {
+              final Dimension d = g.getPlayerWindow().getSize();
+              final GlobalPrefs p = (GlobalPrefs) Prefs.getGlobalPrefs();
+              final PlayerWindow window = g.getPlayerWindow();
+              final Rectangle screen = SwingUtils.getScreenBounds(window);
+              final int w = window.getWidth();
+              final int h;
+              if (Boolean.TRUE.equals(p.getOption(MAIN_WINDOW_REMEMBER).getValue())) {
+                p.setDisableAutoWrite(true);
+                p.getOption(MAIN_WINDOW_HEIGHT).setValue(d.height);
+                p.getOption(MAIN_WINDOW_WIDTH).setValue(d.width);
+                p.saveGlobal();
+                p.setDisableAutoWrite(false);
 
-              h = d.height;
+                h = d.height;
+              }
+              else {
+                h = screen.height;
+              }
+
+              // Now we hide the bottom part of the pane (the part where the map normally is)
+              splitPane.hideBottom();
+
+              // Now we restore the main window to its "map is offline" state.
+              window.setSize(w, h / 3);
             }
-            else {
-              h = screen.height;
-            }
-
-            // Now we hide the bottom part of the pane (the part where the map normally is)
-            splitPane.hideBottom();
-
-            // Now we restore the main window to its "map is offline" state.
-            window.setSize(w, h/3);
           }
         }
-      }
-      else if (theMap.getTopLevelAncestor() != null) {
-        theMap.getTopLevelAncestor().setVisible(false);
+        else if (theMap.getTopLevelAncestor() != null) {
+          theMap.getTopLevelAncestor().setVisible(false);
+        }
       }
     }
 
-    toolBar.setVisible(show);
-    getLaunchButton().setEnabled(show);
-    getLaunchButton().setVisible(useLaunchButton);
+    if (show || !g.isLoadOverSemaphore()) {
+      toolBar.setVisible(show);
+      getLaunchButton().setEnabled(show);
+      getLaunchButton().setVisible(useLaunchButton);
+      if (g.isLoadOverSemaphore()) {
+        theMap.repaint();
+      }
+    }
   }
 
   /**
@@ -2733,10 +2760,10 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
    */
   protected String getDefaultWindowTitle() {
     if (getLocalizedMapName().length() > 0) {
-      return GameModule.getGameModule().getWindowTitleString("Map.window_named", getLocalizedMapName()); //$NON-NLS-1$
+      return GameModule.getGameModule().getWindowTitleString("Map.window_named", getLocalizedMapName(), false); //$NON-NLS-1$
     }
     else {
-      return GameModule.getGameModule().getWindowTitleString("Map.window", GameModule.getGameModule().getLocalizedGameName()); //$NON-NLS-1$
+      return GameModule.getGameModule().getWindowTitleString("Map.window", GameModule.getGameModule().getLocalizedGameName(), false); //$NON-NLS-1$
     }
   }
 
@@ -3228,6 +3255,14 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
   public String getChangeFormat() {
     return isChangeReportingEnabled() ? changeFormat : "";
   }
+
+  /**
+   * @return "changed on map" format string
+   */
+  public String getChangeFormat(boolean noSuppress) {
+    return (isChangeReportingEnabled() || noSuppress) ? changeFormat : "";
+  }
+
 
   /**
    * @return "moved to map" format string

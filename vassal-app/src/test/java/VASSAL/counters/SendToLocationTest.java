@@ -20,7 +20,7 @@ package VASSAL.counters;
 import VASSAL.tools.NamedKeyStroke;
 import java.awt.Point;
 import java.lang.reflect.InvocationTargetException;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class SendToLocationTest extends DecoratorTest {
 
@@ -35,13 +35,13 @@ public class SendToLocationTest extends DecoratorTest {
     // Complex trait
     trait = new SendToLocation();
     trait.commandName = "command";
-    trait.key = new NamedKeyStroke("xyzzy");
+    trait.key = NamedKeyStroke.of("xyzzy");
     trait.mapId.setFormat("abc");
     trait.boardName.setFormat("def");
     trait.x.setFormat("2");
     trait.y.setFormat("3");
     trait.backCommandName = "goback";
-    trait.backKey = new NamedKeyStroke("plover");
+    trait.backKey = NamedKeyStroke.of("plover");
     trait.xIndex.setFormat("4");
     trait.yIndex.setFormat("5");
     trait.xOffset.setFormat("6");
@@ -58,13 +58,13 @@ public class SendToLocationTest extends DecoratorTest {
     // test Back options
     trait = new SendToLocation();
     trait.commandName = "command";
-    trait.key = new NamedKeyStroke("xyzzy");
+    trait.key = NamedKeyStroke.of("xyzzy");
     trait.mapId.setFormat("abc");
     trait.boardName.setFormat("def");
     trait.x.setFormat("2");
     trait.y.setFormat("3");
     trait.backCommandName = "goback";
-    trait.backKey = new NamedKeyStroke("plover");
+    trait.backKey = NamedKeyStroke.of("plover");
     trait.xIndex.setFormat("4");
     trait.yIndex.setFormat("5");
     trait.xOffset.setFormat("6");

@@ -45,7 +45,7 @@ public class DynamicKeyCommandConfigurer extends Configurer {
     super(target.getKey(), target.getKey(),
       new DynamicProperty.DynamicKeyCommand(
         "",
-        new NamedKeyStroke(),
+        NamedKeyStroke.NULL_KEYSTROKE,
         Decorator.getOutermost(target),
         target,
         new PropertySetter("", target)));
@@ -199,5 +199,12 @@ public class DynamicKeyCommandConfigurer extends Configurer {
     commandConfig.removeFocusListener(listener);
     keyConfig.removeFocusListener(listener);
     propChangeConfig.removeFocusListener(listener);
+  }
+
+  @Override
+  public void requestFocus() {
+    if (commandConfig != null) {
+      commandConfig.requestFocus();
+    }
   }
 }

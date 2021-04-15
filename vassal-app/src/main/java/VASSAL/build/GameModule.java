@@ -17,6 +17,7 @@
  */
 package VASSAL.build;
 
+import java.awt.Container;
 import java.awt.FileDialog;
 import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
@@ -32,10 +33,12 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.security.SecureRandom;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
+import java.util.Deque;
 
 import javax.swing.JComponent;
 import javax.swing.JFrame;
@@ -44,7 +47,11 @@ import javax.swing.JPanel;
 import javax.swing.JToolBar;
 import javax.swing.KeyStroke;
 
+import VASSAL.build.module.properties.GlobalTranslatableMessages;
+import VASSAL.build.module.properties.TranslatableString;
+import VASSAL.build.module.properties.TranslatableStringContainer;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -124,9 +131,11 @@ import VASSAL.i18n.ComponentI18nData;
 import VASSAL.i18n.Language;
 import VASSAL.i18n.Localization;
 import VASSAL.i18n.Resources;
+import VASSAL.i18n.I18nResourcePathFinder;
 import VASSAL.launch.PlayerWindow;
 import VASSAL.preferences.PositionOption;
 import VASSAL.preferences.Prefs;
+import VASSAL.script.expression.Expression;
 import VASSAL.tools.ArchiveWriter;
 import VASSAL.tools.CRCUtils;
 import VASSAL.tools.DataArchive;
@@ -137,6 +146,7 @@ import VASSAL.tools.ProblemDialog;
 import VASSAL.tools.QuickColors;
 import VASSAL.tools.ReadErrorDialog;
 import VASSAL.tools.ReflectionUtils;
+import VASSAL.tools.ResourcePathFinder;
 import VASSAL.tools.SequenceEncoder;
 import VASSAL.tools.ToolBarComponent;
 import VASSAL.tools.WarningDialog;
@@ -166,7 +176,7 @@ import static VASSAL.preferences.Prefs.MAIN_WINDOW_REMEMBER;
  * such as {@link DataArchive}, {@link ServerConnection}, {@link Logger}, {@link Chatter}, and {@link Prefs}.</p>
  */
 public class GameModule extends AbstractConfigurable
-  implements CommandEncoder, ToolBarComponent, PropertySource, MutablePropertiesContainer, GpIdSupport {
+  implements CommandEncoder, ToolBarComponent, PropertySource, MutablePropertiesContainer, TranslatableStringContainer, GpIdSupport {
 
   private static final org.slf4j.Logger log = LoggerFactory.getLogger(GameModule.class);
 
@@ -199,6 +209,9 @@ public class GameModule extends AbstractConfigurable
   public static final String MODULE_VASSAL_VERSION_CREATED_PROPERTY = "VassalVersionCreated"; //NON-NLS
   public static final String MODULE_VASSAL_VERSION_RUNNING_PROPERTY = "VassalVersionRunning"; //NON-NLS
 
+  public static final String MODULE_CURRENT_LOCALE = "CurrentLanguage"; //NON-NLS
+  public static final String MODULE_CURRENT_LOCALE_NAME = "CurrentLanguageName"; //NON-NLS
+
   private static final char COMMAND_SEPARATOR = KeyEvent.VK_ESCAPE;
 
   /**
@@ -229,7 +242,9 @@ public class GameModule extends AbstractConfigurable
 
   private static GameModule theModule;
 
-  private String moduleVersion = "0.0";  //$NON-NLS-1$
+  private static String DEFAULT_MODULE_VERSION = "0.0"; //$NON-NLS-1$
+
+  private String moduleVersion = DEFAULT_MODULE_VERSION;
   private String vassalVersionCreated = "0.0";  //$NON-NLS-1$
   private String moduleOther1 = "";
   private String moduleOther2 = "";
@@ -239,7 +254,9 @@ public class GameModule extends AbstractConfigurable
   private String lastSavedConfiguration;
   private FileChooser fileChooser;
   private FileDialog fileDialog;
-  private final MutablePropertiesContainer propsContainer = new Impl();
+  private final MutablePropertiesContainer propsContainer = new MutablePropertiesContainer.Impl();
+  private final TranslatableStringContainer transContainer = new TranslatableStringContainer.Impl();
+
   private final PropertyChangeListener repaintOnPropertyChange =
     evt -> {
       for (final Map map : Map.getMapList()) {
@@ -268,6 +285,11 @@ public class GameModule extends AbstractConfigurable
   private final DataArchive archive;
 
   /**
+   * Our finder of the resources, for translation of images.
+   */
+  private final ResourcePathFinder resourceFinder;
+  
+  /**
    * The user preferences
    */
   private Prefs preferences;
@@ -286,7 +308,7 @@ public class GameModule extends AbstractConfigurable
    * The Chat Log Console
    */
   private final Console console = new Console();
-  
+
   /**
    * Docked PieceWindow (we need to know which one to get our splitters all splatting in the right order)
    */
@@ -324,14 +346,15 @@ public class GameModule extends AbstractConfigurable
 
   private final List<KeyStrokeSource> keyStrokeSources = new ArrayList<>();
   private final List<KeyStrokeListener> keyStrokeListeners = new ArrayList<>();
+
   private CommandEncoder[] commandEncoders = new CommandEncoder[0];
   private final List<String> deferredChat = new ArrayList<>();
 
   private boolean loggingPaused = false;
   private final Object loggingLock = new Object();
-  private Command pausedCommands;
+  private final Deque<Command> pausedCommands = new ArrayDeque<>();
 
-  private String gameFile     = ""; //NON-NLS
+  private String gameFile = ""; //NON-NLS
   private GameFileMode gameFileMode = GameFileMode.NEW_GAME;
 
   private boolean iFeelDirty = false; // Touched the module in ways not detectable by buildString compare
@@ -353,6 +376,55 @@ public class GameModule extends AbstractConfigurable
    * Error Logging to {@link Chatter}?
    */
   private static boolean errorLogToChat = false;
+
+  private boolean loadOverSemaphore = false; // if we're currently loading overtop of another game (so don't disturb UI if possible, it will get a setup(true) soon enough)
+  /**
+   * @param state - true if we're loading-over-top of an existing game (so don't disturb UI elements if possible, will receive a setup(true) soon enough)
+   */
+  public void setLoadOverSemaphore(boolean state) {
+    loadOverSemaphore = state;
+  }
+
+  /**
+   * @return true if we're loading-over-top of an existing game (so don't disturb UI elements if possible, will receive a setup(true) soon enough)
+   */
+  public boolean isLoadOverSemaphore() {
+    return loadOverSemaphore;
+  }
+
+
+  private boolean refreshingSemaphore = false; // if we're currently loading a game just to refresh its (not to play it)
+  /**
+   * @param state - true if refreshing (suppresses GameState.setup method)
+   */
+  public void setRefreshingSemaphore(boolean state) {
+    refreshingSemaphore = state;
+  }
+
+  /**
+   * @return true if refreshing (suppresses GameState.setup method)
+   */
+  public boolean isRefreshingSemaphore() {
+    return refreshingSemaphore;
+  }
+
+
+  private boolean loadingContinuationSemaphore = false; // if we're currently loading a game as continuation
+  /**
+   * @param state - true if loading game as continuation (don't thrash listeners)
+   */
+  public void setLoadingContinuationSemaphore(boolean state) {
+    loadingContinuationSemaphore = state;
+  }
+
+  /**
+   * @return true if loading game as continuation (don't thrash listeners)
+   */
+  public boolean isLoadingContinuationSemaphore() {
+    return loadingContinuationSemaphore;
+  }
+
+
 
   /**
    * @return the top-level frame of the controls window
@@ -449,6 +521,8 @@ public class GameModule extends AbstractConfigurable
    */
   public GameModule(DataArchive archive) {
     this.archive = archive;
+    final boolean isEditing = (archive instanceof ArchiveWriter);
+    resourceFinder = new I18nResourcePathFinder(archive, isEditing ? "en" : Resources.getLocale().getLanguage());
 
     frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
     frame.addWindowListener(new WindowAdapter() {
@@ -520,14 +594,18 @@ public class GameModule extends AbstractConfigurable
       pw.dockMe();
     }
 
-    MenuManager.getInstance().addAction("Prefs.edit_preferences", //NON-NLS
-      getPrefs().getEditor().getEditAction());
+    MenuManager.getInstance().addAction(
+      "Prefs.edit_preferences", //NON-NLS
+      getPrefs().getEditor().getEditAction()
+    );
 
     // Our counter refresher
     final GameRefresher gameRefresher = new GameRefresher(this);
     gameRefresher.addTo(this);
-    MenuManager.getInstance().addAction("GameRefresher.refresh_counters", //NON-NLS
-      gameRefresher.getRefreshAction());
+    MenuManager.getInstance().addAction(
+      "GameRefresher.refresh_counters", //NON-NLS
+      gameRefresher.getRefreshAction()
+    );
   }
 
   /**
@@ -558,6 +636,7 @@ public class GameModule extends AbstractConfigurable
       super.build(e);
       ensureComponent(GamePieceImageDefinitions.class);
       ensureComponent(GlobalProperties.class);
+      ensureComponent(GlobalTranslatableMessages.class);
       ensureComponent(Language.class);
       ensureComponent(BasicCommandEncoder.class);
       ensureComponent(Documentation.class);
@@ -642,6 +721,7 @@ public class GameModule extends AbstractConfigurable
     addComponent(Map.class);
     addComponent(GamePieceImageDefinitions.class);
     addComponent(GlobalProperties.class);
+    addComponent(GlobalTranslatableMessages.class);
     addComponent(PrototypesContainer.class);
     addComponent(PieceWindow.class);
     addComponent(Chatter.class);
@@ -883,7 +963,7 @@ public class GameModule extends AbstractConfigurable
     return new String[]{
       Resources.getString("Editor.GameModule.name_label"),    //$NON-NLS-1$
       Resources.getString("Editor.GameModule.version_label"), //$NON-NLS-1$
-      Resources.getString("Editor.description_label"),    //NON-NLS
+      Resources.getString("Editor.GameModule.description_label"),    //NON-NLS
       Resources.getString("Editor.GameModule.module_other_1_label"), //NON-NLS
       Resources.getString("Editor.GameModule.module_other_2_label") //NON-NLS
     };
@@ -953,10 +1033,23 @@ public class GameModule extends AbstractConfigurable
    * @param src KeyStrokeSource Component that wants to register as a source for hotkey events
    */
   public void addKeyStrokeSource(KeyStrokeSource src) {
-    keyStrokeSources.add(src);
-    for (final KeyStrokeListener l : keyStrokeListeners) {
-      l.addKeyStrokeSource(src);
+    if (!isLoadingContinuationSemaphore()) {
+      if (!keyStrokeSources.contains(src)) {
+        keyStrokeSources.add(src);
+        for (final KeyStrokeListener l : keyStrokeListeners) {
+          l.addKeyStrokeSource(src);
+        }
+      }
     }
+  }
+
+
+  public void removeKeyStrokeListener(KeyStrokeListener l) {
+    for (final KeyStrokeSource s : keyStrokeSources) {
+      l.removeKeyStrokeSource(s);
+    }
+
+    keyStrokeListeners.remove(l);
   }
 
   /**
@@ -969,10 +1062,19 @@ public class GameModule extends AbstractConfigurable
    * @param l KeystrokeListener to add
    */
   public void addKeyStrokeListener(KeyStrokeListener l) {
-    keyStrokeListeners.add(l);
-    for (final KeyStrokeSource s : keyStrokeSources) {
-      l.addKeyStrokeSource(s);
+    if (!isLoadingContinuationSemaphore()) {
+      if (!keyStrokeListeners.contains(l)) {
+        keyStrokeListeners.add(l);
+        for (final KeyStrokeSource s : keyStrokeSources) {
+          l.addKeyStrokeSource(s);
+        }
+      }
     }
+  }
+
+
+  public void resetSourcesAndListeners() {
+    Expression.resetCachedExpressions();
   }
 
   /**
@@ -1068,6 +1170,12 @@ public class GameModule extends AbstractConfigurable
     ProblemDialog.showDeprecated("2020-08-06");
     return Prefs.getGlobalPrefs();
   }
+
+
+  public boolean isTranslatableSupport() {
+    return true;
+  }
+
 
   /**
    * GameModule holds the master list of CommandEncoders, and invokes them as appropriate when commands are sent and
@@ -1357,15 +1465,31 @@ public class GameModule extends AbstractConfigurable
    * @return appropriate title bar string for a window.
    * @param key Localization key to be used to generate string
    * @param name Name of the object whose title bar is to be generated
+   * @param moduleVersion if true, include the module version number
    */
-  public String getWindowTitleString(String key, String name) {
-    if (StringUtils.isEmpty(gameFile) || GameFileMode.NEW_GAME.equals(gameFileMode)) {
-      return Resources.getString(key + "_title", name, "", Info.getVersion());  //NON-NLS-1$
+  public String getWindowTitleString(String key, String name, boolean moduleVersion) {
+    final String version = getGameVersion();
+    final String nameString;
+
+    if (moduleVersion && !DEFAULT_MODULE_VERSION.equals(version)) {
+      nameString = name + " " + version;
     }
     else {
-      return Resources.getString(key + "_title_" + gameFileMode, name, gameFile, Info.getVersion()); //NON-NLS-1$
+      nameString = name;
+    }
+
+    if (StringUtils.isEmpty(gameFile) || GameFileMode.NEW_GAME.equals(gameFileMode)) {
+      return Resources.getString(key + "_title", nameString, "", Info.getVersion());  //NON-NLS-1$
+    }
+    else {
+      return Resources.getString(key + "_title_" + gameFileMode, nameString, moduleVersion ? gameFile : FilenameUtils.removeExtension(gameFile), Info.getVersion()); //NON-NLS-1$
     }
   }
+
+  public String getWindowTitleString(String key, String name) {
+    return getWindowTitleString(key, name, true);
+  }
+
 
   /**
    * Returns an appropriate Title Bar string for the main module window, based on the module name,
@@ -1434,6 +1558,13 @@ public class GameModule extends AbstractConfigurable
   }
 
   /**
+   * @return true if we are currently logging or replaying a game.
+   */
+  public boolean isReplayingOrLogging() {
+    return (gameFileMode == GameFileMode.LOGGING_GAME) || (gameFileMode == GameFileMode.REPLAYING_GAME);
+  }
+
+  /**
    * Exit the application, prompting user to save if necessary
    */
   public void quit() {
@@ -1476,7 +1607,7 @@ public class GameModule extends AbstractConfigurable
       // write and close module prefs
       try {
         p = getPrefs();
-        p.write();
+        p.save();
       }
       catch (IOException e) {
         WriteErrorDialog.error(e, p.getFile());
@@ -1506,6 +1637,15 @@ public class GameModule extends AbstractConfigurable
     return !cancelled;
   }
 
+/*
+  private void dumpCommand(Command c, int indent) {
+    System.out.println(" ".repeat(indent) + c);
+    for (final Command s : c.getSubCommands()) {
+      dumpCommand(s, indent + 1);
+    }
+  }
+*/
+
   /**
    * When the local player has taken any action that would change the game state (or otherwise needs to be sent to
    * any other players' clients), the action should be encapsulated into a {@link Command} and sent here. This method
@@ -1519,12 +1659,7 @@ public class GameModule extends AbstractConfigurable
     if (c != null && !c.isNull()) {
       synchronized (loggingLock) {
         if (loggingPaused) {
-          if (pausedCommands == null) {
-            pausedCommands = c;
-          }
-          else {
-            pausedCommands.append(c);
-          }
+          pausedCommands.getFirst().append(c);
         }
         else {
           getServer().sendToOthers(c);
@@ -1545,11 +1680,8 @@ public class GameModule extends AbstractConfigurable
    */
   public boolean pauseLogging() {
     synchronized (loggingLock) {
-      if (loggingPaused) {
-        return false;
-      }
+      pausedCommands.push(new NullCommand());
       loggingPaused = true;
-      pausedCommands = null;
       return true;
     }
   }
@@ -1561,9 +1693,10 @@ public class GameModule extends AbstractConfigurable
   public Command resumeLogging() {
     final Command c;
     synchronized (loggingLock) {
-      c = pausedCommands == null ? new NullCommand() : pausedCommands;
-      pausedCommands = null;
-      loggingPaused = false;
+      c = pausedCommands.pop();
+      if (pausedCommands.isEmpty()) {
+        loggingPaused = false;
+      }
     }
     return c;
   }
@@ -1573,7 +1706,7 @@ public class GameModule extends AbstractConfigurable
    * Use where the calling level handles the sending of outstanding commands
    */
   public void clearPausedCommands() {
-    pausedCommands = null;
+    pausedCommands.clear();
   }
 
   /**
@@ -1598,6 +1731,17 @@ public class GameModule extends AbstractConfigurable
   }
 
   /**
+   * @return true if the game is online or has ever had more than one player.
+   */
+  public boolean isMultiPlayer() {
+    final ServerConnection sv = getServer();
+    if ((sv != null) && sv.isConnected()) return true;
+
+    final PlayerRoster pr = getPlayerRoster();
+    return ((pr != null) && pr.isMultiPlayer());
+  }
+
+  /**
    * Loads a module object into the player window.
    *
    * Registers a <a href="https://en.wikipedia.org/wiki/Singleton_pattern">singleton</a> GameModule
@@ -1611,16 +1755,15 @@ public class GameModule extends AbstractConfigurable
         Resources.getString("GameModule.open_error",
           theModule.getDataArchive().getName()));
     }
-    else {
-      theModule = module;
-      theModule.setGpIdSupport(theModule);
-      try {
-        theModule.build();
-      }
-      catch (IOException e) {
-        theModule = null;
-        throw e;
-      }
+
+    theModule = module;
+    theModule.setGpIdSupport(theModule);
+    try {
+      theModule.build();
+    }
+    catch (IOException e) {
+      theModule = null;
+      throw e;
     }
 
     /*
@@ -1719,6 +1862,13 @@ public class GameModule extends AbstractConfigurable
     return archive;
   }
 
+  /*
+   * Returns the i18n resource finder
+   */
+  public ResourcePathFinder getResourcePathFinder() {
+    return resourceFinder;
+  }
+
   /**
    * VASSAL modules are stored in ".vmod" files, which are actually simple ".zip" files with
    * a unique extension.
@@ -1755,6 +1905,14 @@ public class GameModule extends AbstractConfigurable
    */
   public boolean isLocalizationEnabled() {
     return getArchiveWriter() == null;
+  }
+
+  /**
+   * Is an editor window currently open
+   * @return true if we're running with an editor window
+   */
+  public boolean isEditorOpen() {
+    return !isLocalizationEnabled();
   }
 
   /**
@@ -1810,19 +1968,18 @@ public class GameModule extends AbstractConfigurable
 
       writer.removeFile(BUILDFILE_OLD); // Don't leave old non-extension buildfile around if we successfully write the new one.
 
-      if (saveAs) writer.saveAs(true);
-      else writer.save(true);
-
-      lastSavedConfiguration = save;
-
-      warn(Resources.getString("Editor.GameModule.saved", writer.getArchive().getFile().getName()));
+      final boolean actuallyDidStuff = saveAs ? writer.saveAs(true) : writer.save(true);
+      if (actuallyDidStuff) {
+        lastSavedConfiguration = save;
+        warn(Resources.getString("Editor.GameModule.saved", writer.getArchive().getFile().getName()));
+      }
     }
     catch (IOException e) {
       WriteErrorDialog.showError(
         getPlayerWindow(),
         e,
         writer.getArchive().getFile(),
-        "Error.file_write_error"
+        "Error.file_write_error" //NON-NLS
       );
     }
   }
@@ -1875,10 +2032,29 @@ public class GameModule extends AbstractConfigurable
     else if (MODULE_OTHER2_PROPERTY.equals(key)) {
       return moduleOther2;
     }
-    final MutableProperty p = propsContainer.getMutableProperty(String.valueOf(key));
-    return p == null ? null : p.getPropertyValue();
-  }
+    else if (GameModule.MODULE_CURRENT_LOCALE.equals(key)) {
+      return Resources.getLocale().getLanguage();
+    }
+    else if (GameModule.MODULE_CURRENT_LOCALE_NAME.equals(key)) {
+      return Resources.getLocale().getDisplayName();
+    }
 
+    //BR// MapName_isVisible property for each map window
+    for (final Map map : Map.getMapList()) {
+      if ((map.getConfigureName() + "_isVisible").equals(key) || (map.getConfigureName().replaceAll(" ", "_") + "_isVisible").equals(key)) { //NON-NLS
+        final Container tla = (map.getComponent() != null) ? ((JPanel)map.getComponent()).getTopLevelAncestor() : null;
+        return String.valueOf(tla != null && tla.isShowing());
+      }
+    }
+
+    final MutableProperty p = propsContainer.getMutableProperty(String.valueOf(key));
+    if (p != null) {
+      return p.getPropertyValue();
+    }
+
+    final TranslatableString s = transContainer.getTranslatableString(String.valueOf(key));
+    return s == null ? null : s.getPropertyValue();
+  }
 
   /**
    * Gets the value of a mutable (changeable) "Global Property". Module level Global Properties serve as the
@@ -1891,6 +2067,11 @@ public class GameModule extends AbstractConfigurable
     return propsContainer.getMutableProperty(name);
   }
 
+  @Override
+  public TranslatableString getTranslatableString(String name) {
+    return transContainer.getTranslatableString(name);
+  }
+
   /**
    * Adds a new mutable (changeable) "Global Property" to the Module. Module level Global Properties serve as the
    * "global variables" of a VASSAL Module, as they are accessible by any component at any time.
@@ -1901,6 +2082,11 @@ public class GameModule extends AbstractConfigurable
   public void addMutableProperty(String key, MutableProperty p) {
     propsContainer.addMutableProperty(key, p);
     p.addMutablePropertyChangeListener(repaintOnPropertyChange);
+  }
+
+  @Override
+  public void addTranslatableString(String key, TranslatableString p) {
+    transContainer.addTranslatableString(key, p);
   }
 
   /**
@@ -1917,12 +2103,22 @@ public class GameModule extends AbstractConfigurable
     return p;
   }
 
+  @Override
+  public TranslatableString removeTranslatableString(String key) {
+    return transContainer.removeTranslatableString(key);
+  }
+
   /**
    * @return Identifies the ID/level for mutable properties stored here in the Module.
    */
   @Override
   public String getMutablePropertiesContainerId() {
     return "Module"; //NON-NLS-$1
+  }
+
+  @Override
+  public String getTranslatableStringContainerId() {
+    return "Module"; //NON-NLS
   }
 
   /**
@@ -1999,9 +2195,22 @@ public class GameModule extends AbstractConfigurable
    * @param l new SideChangeListener
    */
   public void addSideChangeListenerToPlayerRoster(PlayerRoster.SideChangeListener l) {
+    if (!isLoadingContinuationSemaphore()) {
+      final PlayerRoster r = getPlayerRoster();
+      if (r != null) {
+        r.addSideChangeListenerToInstance(l);
+      }
+    }
+  }
+
+  /**
+   * Removes listener for players changing sides
+   * @param l old SideChangeListener
+   */
+  public void removeSideChangeListenerFromPlayerRoster(PlayerRoster.SideChangeListener l) {
     final PlayerRoster r = getPlayerRoster();
     if (r != null) {
-      r.addSideChangeListenerToInstance(l);
+      r.removeSideChangeListenerFromInstance(l);
     }
   }
 

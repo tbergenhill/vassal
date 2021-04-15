@@ -24,9 +24,9 @@ import javax.swing.KeyStroke;
 
 import VASSAL.configure.PropertyExpression;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SequenceEncoderTest {
 
@@ -117,7 +117,7 @@ public class SequenceEncoderTest {
 
   @Test
   public void testEncodeDecodeNamedKeyStroke_1() {
-    final NamedKeyStroke VALUE = new NamedKeyStroke(KeyStroke.getKeyStroke(KeyEvent.VK_F10, KeyEvent.CTRL_DOWN_MASK));
+    final NamedKeyStroke VALUE = NamedKeyStroke.of(KeyStroke.getKeyStroke(KeyEvent.VK_F10, KeyEvent.CTRL_DOWN_MASK));
     final SequenceEncoder se = new SequenceEncoder(',').append(VALUE);
     final SequenceEncoder.Decoder sd = new SequenceEncoder.Decoder(se.getValue(), ',');
     assertEquals(VALUE, sd.nextNamedKeyStroke());
@@ -125,7 +125,7 @@ public class SequenceEncoderTest {
 
   @Test
   public void testEncodeDecodeNamedKeyStroke_2() {
-    final NamedKeyStroke VALUE = new NamedKeyStroke("#Control");
+    final NamedKeyStroke VALUE = NamedKeyStroke.of("#Control");
     final SequenceEncoder se = new SequenceEncoder(',').append(VALUE);
     final SequenceEncoder.Decoder sd = new SequenceEncoder.Decoder(se.getValue(), ',');
     assertEquals(VALUE, sd.nextNamedKeyStroke());
@@ -135,7 +135,7 @@ public class SequenceEncoderTest {
   @SuppressWarnings("deprecation")
   public void testDecodeNamedKeyStrokeWithDeprecatedModifier() {
     final String IN = KeyEvent.VK_F10 + "\\," + KeyEvent.CTRL_MASK;
-    final NamedKeyStroke OUT = new NamedKeyStroke(KeyStroke.getKeyStroke(KeyEvent.VK_F10, KeyEvent.CTRL_DOWN_MASK));
+    final NamedKeyStroke OUT = NamedKeyStroke.of(KeyStroke.getKeyStroke(KeyEvent.VK_F10, KeyEvent.CTRL_DOWN_MASK));
     final SequenceEncoder.Decoder sd = new SequenceEncoder.Decoder(IN, ',');
     assertEquals(OUT, sd.nextNamedKeyStroke('X'));
   }
@@ -172,7 +172,7 @@ public class SequenceEncoderTest {
     assertEquals(VALUE, new PropertyExpression(sd.nextToken()));
   }
 
-  @Test(expected=NoSuchElementException.class)
+  @Test
   public void testEncodeDecodeMulti() {
 
     final boolean booleanIn = true;
@@ -181,8 +181,8 @@ public class SequenceEncoderTest {
     final long longIn = 16777217;
     final Color colorIn = new Color(32, 145, 212);
     final KeyStroke keyStrokeIn = KeyStroke.getKeyStroke(KeyEvent.VK_F10, KeyEvent.CTRL_DOWN_MASK);
-    final NamedKeyStroke namedKeyStrokein1 = new NamedKeyStroke(keyStrokeIn);
-    final NamedKeyStroke namedKeyStrokein2 = new NamedKeyStroke("#control");
+    final NamedKeyStroke namedKeyStrokein1 = NamedKeyStroke.of(keyStrokeIn);
+    final NamedKeyStroke namedKeyStrokein2 = NamedKeyStroke.of("#control");
     final String stringIn = "How many ,'s in this sentence?\n";
     final String[] stringArrayIn = {"line 1", "line 2,", "line 3'", "line 4\n"};
     final PropertyExpression propertyExpressionIn = new PropertyExpression("PieceName>=2");
@@ -216,7 +216,7 @@ public class SequenceEncoderTest {
     assertEquals(propertyExpressionIn, new PropertyExpression(sd.nextToken()));
 
     // Should be nothing left - should throw a NoSuchElementException
-    sd.nextToken();
+    assertThrows(NoSuchElementException.class, () -> sd.nextToken());
   }
 
   @Test

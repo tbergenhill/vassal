@@ -41,10 +41,12 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.stream.Stream;
 
 import javax.swing.AbstractAction;
 import javax.swing.Action;
@@ -81,6 +83,7 @@ import net.miginfocom.swing.MigLayout;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.SystemUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.jdesktop.swingx.JXTreeTable;
 import org.jdesktop.swingx.treetable.DefaultMutableTreeTableNode;
 import org.jdesktop.swingx.treetable.DefaultTreeTableModel;
@@ -122,6 +125,7 @@ import VASSAL.tools.swing.Dialogs;
 import VASSAL.tools.swing.SplitPane;
 import VASSAL.tools.swing.SwingUtils;
 import VASSAL.tools.version.UpdateCheckAction;
+import VASSAL.tools.version.VersionUtils;
 
 public class ModuleManagerWindow extends JFrame {
   private static final long serialVersionUID = 1L;
@@ -150,6 +154,7 @@ public class ModuleManagerWindow extends JFrame {
   private final ImageIcon fileIcon;
 
   private StringArrayConfigurer recentModuleConfig;
+  private StringArrayConfigurer moduleConfig;
   private File selectedModule;
 
   private final CardLayout modulePanelLayout;
@@ -488,12 +493,34 @@ public class ModuleManagerWindow extends JFrame {
     }
   }
 
+  private static Pair<String, String> splitVersion(String s) {
+    final int len = s.length();
+    for (int i = 0; i < len; ++i) {
+      final char c = s.charAt(i);
+      if (0x30 <= c && c <= 0x39) {
+        return Pair.of(s.substring(0, i), s.substring(i));
+      }
+    }
+    return Pair.of(s, "");
+  }
+
   protected void buildTree() {
+    final List<ModuleInfo> moduleList = new ArrayList<>();
+    final List<String> missingModules = new ArrayList<>();
+
+    // RecentModules key was used through 3.5.1, but 3.2 can't read the
+    // buildFile.xml for 3.5+ modules. Hence we've switched to the Modules
+    // key, but still collect whatever is in RecentModules for compatibility.
     recentModuleConfig = new StringArrayConfigurer("RecentModules", null); //NON-NLS
     Prefs.getGlobalPrefs().addOption(null, recentModuleConfig);
-    final List<String> missingModules = new ArrayList<>();
-    final List<ModuleInfo> moduleList = new ArrayList<>();
-    for (final String s : recentModuleConfig.getStringArray()) {
+
+    moduleConfig = new StringArrayConfigurer("Modules", null); //NON-NLS
+    Prefs.getGlobalPrefs().addOption(null, moduleConfig);
+
+    Stream.concat(
+      Arrays.stream(recentModuleConfig.getStringArray()),
+      Arrays.stream(moduleConfig.getStringArray())
+    ).sorted().distinct().forEach(s -> {
       final ModuleInfo module = new ModuleInfo(s);
       if (module.getFile().exists() && module.isValid()) {
         moduleList.add(module);
@@ -501,7 +528,7 @@ public class ModuleManagerWindow extends JFrame {
       else {
         missingModules.add(s);
       }
-    }
+    });
 
     for (final String s : missingModules) {
       logger.info(Resources.getString("ModuleManager.removing_module", s));
@@ -512,9 +539,26 @@ public class ModuleManagerWindow extends JFrame {
         .orElse(null);
       moduleList.remove(toRemove);
       recentModuleConfig.removeValue(s);
+      moduleConfig.removeValue(s);
     }
 
-    moduleList.sort(AbstractInfo::compareTo);
+    moduleList.sort((a, b) -> {
+      // sort module names in ascending order
+      int i = a.toString().compareTo(b.toString());
+      if (i == 0) {
+        // module names are the same
+        final Pair<String, String> ap = splitVersion(a.getVersion());
+        final Pair<String, String> bp = splitVersion(b.getVersion());
+
+        i = ap.getLeft().compareTo(bp.getLeft());
+        if (i == 0) {
+          // leading nonnumeric part of versions are the same
+          // sort version numbers in descending order
+          i = -VersionUtils.compareVersions(ap.getRight(), bp.getRight());
+        }
+      }
+      return i;
+    });
 
     rootNode = new MyTreeNode(new RootInfo());
 
@@ -827,6 +871,7 @@ public class ModuleManagerWindow extends JFrame {
       l.add(module.encode());
     }
     recentModuleConfig.setValue(l.toArray(new String[0]));
+    moduleConfig.setValue(l.toArray(new String[0]));
     modulePanelLayout.show(
       moduleView, getModuleCount() == 0 ? "quickStart" : "modules");
   }
@@ -1425,6 +1470,20 @@ public class ModuleManagerWindow extends JFrame {
     }
 
     public void addFolder(File f) {
+      try {
+        f = f.getCanonicalFile();
+      }
+      catch (final IOException e) {
+        JOptionPane.showMessageDialog(
+          ModuleManagerWindow.this,
+          Resources.getString("Error.file_read_error", f.getPath()),
+          "Error",
+          JOptionPane.ERROR_MESSAGE
+        );
+
+        return;
+      }
+
       // try to create the directory if it doesn't exist
       if (!f.exists() && !f.mkdirs()) {
         JOptionPane.showMessageDialog(

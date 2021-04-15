@@ -89,6 +89,8 @@ public class GlobalOptions extends AbstractConfigurable {
   public static final String MARK_MOVED = "markMoved"; //$NON-NLS-1$
   public static final String AUTO_REPORT = "autoReport"; //$NON-NLS-1$
   public static final String CHATTER_HTML_SUPPORT = "chatterHTMLSupport"; //$NON-NLS-1$
+  public static final String HOTKEYS_ON_CLOSED_WINDOWS = "hotKeysOnClosedWindows"; //NON-NLS
+  public static final String TRANSLATABLE_SUPPORT = "translatableSupport"; //NON-NLS
 
   // Hybrid preference settings
   public static final String ALWAYS = "Always"; //$NON-NLS-1$
@@ -101,6 +103,7 @@ public class GlobalOptions extends AbstractConfigurable {
   public static final String SINGLE_WINDOW = "singleWindow"; //$NON-NLS-1$
   public static final String MAXIMUM_HEAP = "maximumHeap"; //$NON-NLS-1$
   public static final String DRAG_THRESHOLD = "dragThreshold"; //$NON-NLS-1$
+  public static final String STACK_VIEWER_ORDER = "stackViewerOrder"; //NON-NLS
 
   // Compatibility Tab preferences
   public static final String BUG_10295 = "bug10295"; //$NON-NLS-1$
@@ -134,6 +137,7 @@ public class GlobalOptions extends AbstractConfigurable {
   private String autoReport = ALWAYS;        // "Auto-report moves" -> defaults to forced on
   private String markMoved = NEVER;          // **NO LONGER USED**
   private String chatterHTMLSupport = NEVER; // "Enable HTML Chat" - > defaults to forced off
+  private String hotKeysOnClosedWindows = NEVER; // Hotkeys on Closed Windows -> defaults to off
 
   // Configurable prompt string for unmask-my-pieces
   private String promptString = Resources.getString("GlobalOptions.opponents_can_unmask_my_pieces");
@@ -224,6 +228,10 @@ public class GlobalOptions extends AbstractConfigurable {
     // Preference to center on opponent's moves (used to be module-designer-set attribute, now always a player preference)
     final BooleanConfigurer config = new BooleanConfigurer(CENTER_ON_MOVE, Resources.getString("GlobalOptions.center_on_move"), Boolean.TRUE); //$NON-NLS-1$
     prefs.addOption(config);
+
+    // Preference to reverse the left-to-right order for the Mouseover Stack Viewer (CounterDetailViewer)
+    final BooleanConfigurer stackViewerOrder = new BooleanConfigurer(STACK_VIEWER_ORDER, Resources.getString("GlobalOptions.stack_viewer_order"), Boolean.FALSE);
+    prefs.addOption(stackViewerOrder);
 
     //CC// Center-on-Moves Sensitivity (is the pct of distance from border to center of window that triggers a recenter)
     final IntConfigurer pctRecenterOn = new IntConfigurer(CENTER_ON_MOVE_SENSITIVITY,
@@ -452,7 +460,8 @@ public class GlobalOptions extends AbstractConfigurable {
       null,
       Resources.getString("Editor.GlobalOption.autoreport_moves"), //$NON-NLS-1$
       Resources.getString("Editor.GlobalOption.playerid_format"), //$NON-NLS-1$
-      Resources.getString("Editor.GlobalOption.chatter_html_support") //$NON-NLS-1$
+      Resources.getString("Editor.GlobalOption.chatter_html_support"), //$NON-NLS-1$
+      Resources.getString("Editor.GlobalOption.hot_keys_on_closed_windows") //NON-NLS
     };
   }
 
@@ -467,7 +476,8 @@ public class GlobalOptions extends AbstractConfigurable {
         PROMPT_STRING,
         AUTO_REPORT,
         PLAYER_ID_FORMAT,
-        CHATTER_HTML_SUPPORT
+        CHATTER_HTML_SUPPORT,
+        HOTKEYS_ON_CLOSED_WINDOWS
       )
     );
 
@@ -486,6 +496,7 @@ public class GlobalOptions extends AbstractConfigurable {
       null,
       Prompt.class,
       PlayerIdFormatConfig.class,
+      PromptOnOff.class,
       PromptOnOff.class
     };
   }
@@ -608,6 +619,9 @@ public class GlobalOptions extends AbstractConfigurable {
       }
       return chatterHTMLSupport;
     }
+    else if (HOTKEYS_ON_CLOSED_WINDOWS.equals(key)) {
+      return hotKeysOnClosedWindows;
+    }
     else if (AUTO_REPORT.equals(key)) {
       return autoReport;
     }
@@ -674,6 +688,9 @@ public class GlobalOptions extends AbstractConfigurable {
     else if (CHATTER_HTML_SUPPORT.equals(key)) {
       chatterHTMLSupport = (String) value;
     }
+    else if (HOTKEYS_ON_CLOSED_WINDOWS.equals(key)) {
+      hotKeysOnClosedWindows = (String) value;
+    }
     else if (AUTO_REPORT.equals(key)) {
       autoReport = (String) value;
       if (PROMPT.equals(autoReport)) {
@@ -709,6 +726,11 @@ public class GlobalOptions extends AbstractConfigurable {
     return Boolean.TRUE.equals(GameModule.getGameModule().getPrefs().getValue(CENTER_ON_MOVE));
   }
 
+  /** @return true if stack viewer should reverse left-to-right order */
+  public boolean isReverseStackViewerOrder() {
+    return Boolean.TRUE.equals(GameModule.getGameModule().getPrefs().getValue(STACK_VIEWER_ORDER));
+  }
+
   /** @return percent-distance-from-center sensitivity for centering on opponent's move */
   public double centerOnOpponentsMoveSensitivity() {
     int sensitivity = (Integer) GameModule.getGameModule().getPrefs().getValue(CENTER_ON_MOVE_SENSITIVITY);
@@ -729,6 +751,11 @@ public class GlobalOptions extends AbstractConfigurable {
   /** @return true if chat is enabled in HTML (uses designer setting only) */
   public boolean chatterHTMLSupport() {
     return isEnabled(chatterHTMLSupport, CHATTER_HTML_SUPPORT);
+  }
+
+  /** @return designer's setting for allowing hotkeys on closed windows */
+  public boolean isHotKeysOnClosedWindows() {
+    return isEnabled(hotKeysOnClosedWindows, HOTKEYS_ON_CLOSED_WINDOWS);
   }
 
   /** @return - NO LONGER USED */
@@ -753,7 +780,7 @@ public class GlobalOptions extends AbstractConfigurable {
     if (ALWAYS.equals(attValue)) {
       return true;
     }
-    else if (NEVER.equals(attValue) || CHATTER_HTML_SUPPORT.equals(prefsPrompt)) {
+    else if (NEVER.equals(attValue) || CHATTER_HTML_SUPPORT.equals(prefsPrompt) || HOTKEYS_ON_CLOSED_WINDOWS.equals(prefsPrompt)) {
       return false;
     }
     else {

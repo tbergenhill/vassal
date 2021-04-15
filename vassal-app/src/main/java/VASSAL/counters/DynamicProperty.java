@@ -295,7 +295,16 @@ public class DynamicProperty extends Decorator implements TranslatablePiece, Pro
   @Override
   public List<String> getExpressionList() {
     final List<String> l = new ArrayList<>();
-    l.add(value); // We'll treat the at-start value of the property as a quasi-expression
+
+    if (!value.isEmpty()) {
+      l.add(Resources.getString("Editor.DynamicProperty.init_value", value)); // We'll treat the at-start value of the property as a quasi-expression
+    }
+
+    // If this is a numeric property, our min and max values will be treated as a quasi-expression (and so they will be searchable)
+    if (numeric) {
+      l.add(Resources.getString("Editor.DynamicProperty.min_value", minValue));
+      l.add(Resources.getString("Editor.DynamicProperty.max_value", maxValue));
+    }
 
     for (final DynamicKeyCommand dkc : keyCommands) {
       final PropertyChanger propChanger = dkc.getPropChanger();
@@ -551,14 +560,14 @@ public class DynamicProperty extends Decorator implements TranslatablePiece, Pro
       super(target.getKey(), target.getKey(),
         new DynamicKeyCommand(
           Resources.getString("Editor.DynamicProperty.change_value"),
-          NamedKeyStroke.getNamedKeyStroke('V', InputEvent.CTRL_DOWN_MASK),
+          NamedKeyStroke.of('V', InputEvent.CTRL_DOWN_MASK),
           Decorator.getOutermost(target),
           target,
           new PropertyPrompt(target, Resources.getString("Editor.DynamicProperty.change_value_of", target.getKey()))));
 
       ProblemDialog.showDeprecated("2020-12-06");
       commandConfig = new StringConfigurer(Resources.getString("Editor.DynamicProperty.change_value"));
-      keyConfig = new NamedHotKeyConfigurer(NamedKeyStroke.getNamedKeyStroke('V', InputEvent.CTRL_DOWN_MASK));
+      keyConfig = new NamedHotKeyConfigurer(NamedKeyStroke.of('V', InputEvent.CTRL_DOWN_MASK));
       propChangeConfig = new PropertyChangerConfigurer(null, target.getKey(), target);
       propChangeConfig.setValue(new PropertyPrompt(target, Resources.getString("Editor.DynamicProperty.change_value_of", target.getKey())));
 

@@ -219,7 +219,6 @@ public class Deck extends Stack implements PlayerRoster.SideChangeListener {
   public Deck(GameModule gameModule, String type) {
     this.gameModule = gameModule;
     mySetType(type);
-    gameModule.addSideChangeListenerToPlayerRoster(this);
   }
 
   /**
@@ -430,6 +429,61 @@ public class Deck extends Stack implements PlayerRoster.SideChangeListener {
     fireNumCardsProperty();
   }
 
+
+  public void addListeners() {
+    if (shuffleListener == null) {
+      shuffleListener = new NamedKeyStrokeListener(e -> {
+        gameModule.sendAndLog(shuffle());
+        repaintMap();
+      });
+
+      gameModule.addKeyStrokeListener(shuffleListener);
+      shuffleListener.setKeyStroke(getShuffleKey());
+    }
+
+    if (reshuffleListener == null) {
+      reshuffleListener = new NamedKeyStrokeListener(e -> {
+        gameModule.sendAndLog(sendToDeck());
+        repaintMap();
+      });
+
+      gameModule.addKeyStrokeListener(reshuffleListener);
+      reshuffleListener.setKeyStroke(getReshuffleKey());
+    }
+
+    if (reverseListener == null) {
+      reverseListener = new NamedKeyStrokeListener(e -> {
+        gameModule.sendAndLog(reverse());
+        repaintMap();
+      });
+
+      gameModule.addKeyStrokeListener(reverseListener);
+      reverseListener.setKeyStroke(getReverseKey());
+    }
+
+    gameModule.addSideChangeListenerToPlayerRoster(this);
+  }
+
+  public void removeListeners() {
+    if (shuffleListener != null) {
+      gameModule.removeKeyStrokeListener(shuffleListener);
+      shuffleListener = null;
+    }
+
+    if (reshuffleListener != null) {
+      gameModule.removeKeyStrokeListener(reshuffleListener);
+      reshuffleListener = null;
+    }
+
+    if (reverseListener != null) {
+      gameModule.removeKeyStrokeListener(reverseListener);
+      reverseListener = null;
+    }
+
+    gameModule.removeSideChangeListenerFromPlayerRoster(this);
+  }
+
+
   /** Sets the information for this Deck.  See {@link Decorator#myGetType}
    *  @param type a serialized configuration string to
    *              set the "type information" of this Deck, which is
@@ -473,34 +527,6 @@ public class Deck extends Stack implements PlayerRoster.SideChangeListener {
     shuffleCommand = st.nextToken(Resources.getString("Deck.shuffle"));
     reverseCommand = st.nextToken(Resources.getString("Deck.reverse"));
     reverseKey = st.nextNamedKeyStroke(null);
-
-    if (shuffleListener == null) {
-      shuffleListener = new NamedKeyStrokeListener(e -> {
-        gameModule.sendAndLog(shuffle());
-        repaintMap();
-      });
-      gameModule.addKeyStrokeListener(shuffleListener);
-    }
-    shuffleListener.setKeyStroke(getShuffleKey());
-
-    if (reshuffleListener == null) {
-      reshuffleListener = new NamedKeyStrokeListener(e -> {
-        gameModule.sendAndLog(sendToDeck());
-        repaintMap();
-      });
-      gameModule.addKeyStrokeListener(reshuffleListener);
-    }
-    reshuffleListener.setKeyStroke(getReshuffleKey());
-
-    if (reverseListener == null) {
-      reverseListener = new NamedKeyStrokeListener(e -> {
-        gameModule.sendAndLog(reverse());
-        repaintMap();
-      });
-      gameModule.addKeyStrokeListener(reverseListener);
-    }
-    reverseListener.setKeyStroke(getReverseKey());
-
 
     final DrawPile myPile = DrawPile.findDrawPile(getDeckName());
 
@@ -771,13 +797,12 @@ public class Deck extends Stack implements PlayerRoster.SideChangeListener {
   @Deprecated(since = "2020-08-06", forRemoval = true)
   public void setEmptyKey(KeyStroke k) {
     ProblemDialog.showDeprecated("2020-08-06");
-    emptyKey = new NamedKeyStroke(k);
+    emptyKey = NamedKeyStroke.of(k);
   }
 
   public void setEmptyKey(NamedKeyStroke k) {
     emptyKey = k;
   }
-
 
   public void setRestrictOption(boolean restrictOption) {
     this.restrictOption = restrictOption;
@@ -854,20 +879,29 @@ public class Deck extends Stack implements PlayerRoster.SideChangeListener {
     final List<GamePiece> l = Arrays.asList(a);
     DragBuffer.getBuffer().clear();
     Collections.shuffle(l, gameModule.getRNG());
-    return setContents(l).append(reportCommand(shuffleMsgFormat, Resources.getString("Deck.shuffle"))); //$NON-NLS-1$
+    Command c = setContents(l);
+    if (Map.isChangeReportingEnabled()) {
+      c = c.append(reportCommand(shuffleMsgFormat, Resources.getString("Deck.shuffle"))); //$NON-NLS-1$
+    }
+    return c;
   }
 
-  /** Shuffle the contents of the Deck, IF it is an always-shuffle, and we're about to ask for a random list from it */
-  public Command maybeShuffle() {
-    if (!ALWAYS.equals(shuffleOption)) {
-      return new NullCommand();
+  /**
+   * Return a list if pieces in the Deck in Dealable order.
+   * If this is an Always shuffle Deck, then shuffle the list of pieces, otherwise just
+   * reverse the list order so that we deal from the top.
+   *
+   * @return List of pieces in Dealable order
+   */
+  public List<GamePiece> getOrderedPieces() {
+    final List<GamePiece> pieces = asList();
+    if (ALWAYS.equals(shuffleOption)) {
+      Collections.shuffle(pieces, GameModule.getGameModule().getRNG());
     }
-    final GamePiece[] a = new GamePiece[pieceCount];
-    System.arraycopy(contents, 0, a, 0, pieceCount);
-    final List<GamePiece> l = Arrays.asList(a);
-    DragBuffer.getBuffer().clear();
-    Collections.shuffle(l, gameModule.getRNG());
-    return setContents(l);
+    else {
+      Collections.reverse(pieces);
+    }
+    return pieces;
   }
 
   /**
@@ -1017,9 +1051,12 @@ public class Deck extends Stack implements PlayerRoster.SideChangeListener {
 
   public Command setContentsFaceDown(boolean value) {
     final ChangeTracker t = new ChangeTracker(this);
-    final Command c = new NullCommand();
+    Command c = new NullCommand();
     faceDown = value;
-    return t.getChangeCommand().append(c).append(reportCommand(faceDownMsgFormat, value ? Resources.getString("Deck.face_down") : Resources.getString("Deck.face_up"))); //$NON-NLS-1$ //$NON-NLS-2$
+    if (Map.isChangeReportingEnabled()) {
+      c = c.append(reportCommand(faceDownMsgFormat, value ? Resources.getString("Deck.face_down") : Resources.getString("Deck.face_up")));
+    }
+    return t.getChangeCommand().append(c);
   }
 
   /** Reverse the order of the contents of the Deck */
@@ -1028,8 +1065,11 @@ public class Deck extends Stack implements PlayerRoster.SideChangeListener {
     for (final Iterator<GamePiece> i = getPiecesReverseIterator(); i.hasNext(); ) {
       list.add(i.next());
     }
-    return setContents(list).append(reportCommand(
-      reverseMsgFormat, Resources.getString("Deck.reverse"))); //$NON-NLS-1$
+    Command c = setContents(list);
+    if (Map.isChangeReportingEnabled()) {
+      c = c.append(reportCommand(reverseMsgFormat, Resources.getString("Deck.reverse")));
+    }
+    return c;
   }
 
   public boolean isDrawOutline() {
@@ -1072,7 +1112,7 @@ public class Deck extends Stack implements PlayerRoster.SideChangeListener {
   public void draw(java.awt.Graphics g, int x, int y, Component obs, double zoom) {
     final int count = Math.min(getPieceCount(), maxStack);
     final GamePiece top = (nextDraw != null && !nextDraw.isEmpty()) ?
-      nextDraw.get(0) : topPiece();  
+      nextDraw.get(0) : topPiece();
 
     if (top != null) {
       final Object owner = top.getProperty(Properties.OBSCURED_BY);
@@ -1401,7 +1441,7 @@ public class Deck extends Stack implements PlayerRoster.SideChangeListener {
     nextDraw = null;
     final DrawPile target = DrawPile.findDrawPile(reshuffleTarget);
     if (target != null) {
-      if (reshuffleMsgFormat.length() > 0) {
+      if ((reshuffleMsgFormat.length() > 0) && Map.isChangeReportingEnabled()) {
         c = reportCommand(reshuffleMsgFormat, reshuffleCommand);
         if (c == null) {
           c = new NullCommand();
@@ -1413,7 +1453,7 @@ public class Deck extends Stack implements PlayerRoster.SideChangeListener {
       // move cards to deck
       final int cnt = getPieceCount() - 1;
       for (int i = cnt; i >= 0; i--) {
-        c.append(target.addToContents(getPieceAt(i)));
+        c = c.append(target.addToContents(getPieceAt(i)));
       }
     }
     return c;

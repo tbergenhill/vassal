@@ -204,11 +204,11 @@ public class PropertySheet extends Decorator implements TranslatablePiece {
     if (launchKeyStrokeToken.length() > 0) {
       launchKeyStroke = NamedHotKeyConfigurer.decode(launchKeyStrokeToken);
     }
-    else if (launchKeyToken.length() > 0) {
-      launchKeyStroke = new NamedKeyStroke(launchKeyToken.charAt(0), InputEvent.CTRL_DOWN_MASK);
-    }
     else {
-      launchKeyStroke = new NamedKeyStroke('P', InputEvent.CTRL_DOWN_MASK);
+      launchKeyStroke = NamedKeyStroke.of(
+        launchKeyToken.length() > 0 ? launchKeyToken.charAt(0) : 'P',
+        InputEvent.CTRL_DOWN_MASK
+      );
     }
   }
 
@@ -386,11 +386,13 @@ public class PropertySheet extends Decorator implements TranslatablePiece {
     }
 
     if (frame == null) {
+      final VASSAL.build.module.Map map = getMap();
+      final JComponent view = map != null ? map.getView() : null;
+
       m_fields = new ArrayList<>();
-      final VASSAL.build.module.Map map = piece.getMap();
       Frame parent = null;
-      if (map != null && map.getView() != null) {
-        final Container topWin = map.getView().getTopLevelAncestor();
+      if (map != null) {
+        final Container topWin = view.getTopLevelAncestor();
         if (topWin instanceof JFrame) {
           parent = (Frame) topWin;
         }
@@ -447,7 +449,7 @@ public class PropertySheet extends Decorator implements TranslatablePiece {
           switch (commitStyle) {
           case COMMIT_IMMEDIATELY:
             // queue commit operation because it could do something
-            // unsafe in a an event update
+            // unsafe in an event update
             SwingUtilities.invokeLater(() -> updateStateFromFields());
             break;
           case COMMIT_ON_APPLY:
@@ -578,9 +580,9 @@ public class PropertySheet extends Decorator implements TranslatablePiece {
 
       // move window
       Point p = GameModule.getGameModule().getPlayerWindow().getLocation();
-      if (getMap() != null) {
-        p = getMap().getView().getLocationOnScreen();
-        final Point p2 = getMap().mapToComponent(getPosition());
+      if (map != null && view.isShowing()) {
+        p = view.getLocationOnScreen();
+        final Point p2 = map.mapToComponent(getPosition());
         p.translate(p2.x, p2.y);
       }
       frame.setLocation(p.x, p.y);
@@ -673,8 +675,8 @@ public class PropertySheet extends Decorator implements TranslatablePiece {
       add(new JLabel(name), c);
 
       c.weightx = 1.0;
-      final HintTextField field = new HintTextField(value);
-      field.setHint(Resources.getString(hintKey));
+      final HintTextField field = new HintTextField(Resources.getString(hintKey));
+      field.setText(value);
       ++c.gridx;
       c.anchor = GridBagConstraints.WEST;
       c.fill = GridBagConstraints.HORIZONTAL;
@@ -921,7 +923,7 @@ public class PropertySheet extends Decorator implements TranslatablePiece {
 
     public Ed(PropertySheet propertySheet) {
       m_panel = new PropertyPanel();
-      descCtrl = m_panel.addStringCtrl(Resources.getString("Editor.description_label"), propertySheet.menuName, "Editor.description_hint");
+      descCtrl = m_panel.addStringCtrl(Resources.getString("Editor.description_label"), propertySheet.description, "Editor.description_hint");
       menuNameCtrl = m_panel.addStringCtrl(Resources.getString("Editor.menu_command"), propertySheet.menuName, "Editor.menu_command_hint");
       keyStrokeConfig = m_panel.addKeyStrokeConfig(propertySheet.launchKeyStroke);
       commitCtrl = m_panel.addComboBox(Resources.getString("Editor.PropertySheet.commit_on"), COMMIT_VALUES, propertySheet.commitStyle);

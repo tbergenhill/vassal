@@ -20,13 +20,13 @@ package VASSAL.counters;
 import VASSAL.tools.NamedKeyStroke;
 import java.lang.reflect.InvocationTargetException;
 import javax.swing.KeyStroke;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class CloneTest extends DecoratorTest {
 
 
   @Test
-  public void serializeTests() throws NoSuchMethodException, InstantiationException, IllegalAccessException, InvocationTargetException {
+  public void serialize() throws NoSuchMethodException, InstantiationException, IllegalAccessException, InvocationTargetException {
 
     // Default piece
     Clone trait = new Clone();
@@ -35,14 +35,14 @@ public class CloneTest extends DecoratorTest {
     // Set a command name and NamedKeyStroke
     trait = new Clone();
     trait.commandName = "testCommand"; // NON-NLS
-    trait.key = new NamedKeyStroke("xyzzy"); // NON-NLS
+    trait.key = NamedKeyStroke.of("xyzzy"); // NON-NLS
     trait.description = "plover";
     serializeTest("NamedKeyStroke", trait); // NON-NLS
 
     // Set a command name and standard KeyStroke
     trait = new Clone();
     trait.commandName = "testCommand"; // NON-NLS
-    trait.key = new NamedKeyStroke(KeyStroke.getKeyStroke(65, 0));
+    trait.key = NamedKeyStroke.of(KeyStroke.getKeyStroke(65, 0));
     trait.description = "plover";
     serializeTest("KeyStroke", trait); // NON-NLS
   }

@@ -19,7 +19,7 @@ package VASSAL.counters;
 
 import VASSAL.tools.NamedKeyStroke;
 import java.lang.reflect.InvocationTargetException;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class MenuSeparatorTest extends DecoratorTest {
 
@@ -38,12 +38,12 @@ public class MenuSeparatorTest extends DecoratorTest {
 
     // Set a Command and Named KeyStroke
     trait = new MenuSeparator();
-    trait.key = new NamedKeyStroke("xyzzy");
+    trait.key = NamedKeyStroke.of("xyzzy");
     serializeTest("Key Stroke only", trait); // NON-NLS
 
     // Set a Command and Named KeyStroke
     trait = new MenuSeparator();
-    trait.key = new NamedKeyStroke("xyzzy");
+    trait.key = NamedKeyStroke.of("xyzzy");
     trait.desc = "plover";
     serializeTest("Description and Key Stroke", trait); // NON-NLS
 

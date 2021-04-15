@@ -185,11 +185,12 @@ public class ChatServerControls extends AbstractBuildable {
     final GameModule gm = GameModule.getGameModule();
     setClient((ChatServerConnection) gm.getServer());
     launch = new JButton(Resources.getString("Chat.server"));  //$NON-NLS-1$
+    launch.setFocusable(false);
     launch.setAlignmentY(0.0F);
     final ActionListener al = evt -> toggleVisible();
     launch.addActionListener(al);
     final NamedKeyStrokeListener l = new NamedKeyStrokeListener(al);
-    l.setKeyStroke(NamedKeyStroke.getNamedKeyStroke(KeyEvent.VK_S, InputEvent.ALT_DOWN_MASK));
+    l.setKeyStroke(NamedKeyStroke.of(KeyEvent.VK_S, InputEvent.ALT_DOWN_MASK));
     final URL iconURL = getClass().getResource("/images/connect.gif");  //$NON-NLS-1$
     if (iconURL != null) {
       launch.setIcon(new ImageIcon(iconURL));

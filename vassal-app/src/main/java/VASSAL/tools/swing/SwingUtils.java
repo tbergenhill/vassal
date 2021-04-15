@@ -65,7 +65,8 @@ public class SwingUtils {
     );
   }
 
-  public static final Map<?, ?> FONT_HINTS = GraphicsEnvironment.isHeadless() ? Collections.emptyMap() : (Map<?, ?>) Toolkit.getDefaultToolkit().getDesktopProperty("awt.font.desktophints");
+  public static final Map<?, ?> FONT_HINTS = (GraphicsEnvironment.isHeadless() || (Toolkit.getDefaultToolkit().getDesktopProperty("awt.font.desktophints") == null)) ? 
+                                              Collections.emptyMap() : (Map<?, ?>) Toolkit.getDefaultToolkit().getDesktopProperty("awt.font.desktophints");
 
   private interface InputClassifier {
     /**
@@ -387,6 +388,28 @@ public class SwingUtils {
     // for them before, this won't change behavior by excluding them.
     final InputEvent te = e.getTriggerEvent();
     return !(te instanceof MouseEvent) || isMainMouseButtonDown((MouseEvent) te);
+  }
+
+  /**
+   * On Mac Systems, convert the Right-Option modifier (VK_ALT_GRAPH) to be the same as the Left-Option
+   * modifier (VK_ALT). This mirrors the equivalency of the left and right ALT keys under windows.
+   *
+   * @param e KeyEvent to be examined
+   * @return Updated KeyEvent
+   */
+  public static KeyEvent convertKeyEvent(KeyEvent e) {
+    if (SystemUtils.IS_OS_MAC && e.isAltGraphDown()) {
+      return new KeyEvent(
+        (Component) e.getSource(),
+        e.getID(),
+        e.getWhen(),
+        (e.getModifiersEx() | InputEvent.ALT_DOWN_MASK) & ~InputEvent.ALT_GRAPH_DOWN_MASK,
+        e.getKeyCode(),
+        e.getKeyChar(),
+        e.getKeyLocation()
+      );
+    }
+    return e;
   }
 
   /**

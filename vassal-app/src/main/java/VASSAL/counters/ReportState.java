@@ -68,6 +68,7 @@ public class ReportState extends Decorator implements TranslatablePiece {
   protected NamedKeyStroke[] cycleDownKeys;
   protected int cycleIndex = -1;
   protected String description;
+  protected boolean noSuppress;
 
   public ReportState() {
     this(ID, null);
@@ -95,7 +96,7 @@ public class ReportState extends Decorator implements TranslatablePiece {
 
   @Override
   protected KeyCommand[] myGetKeyCommands() {
-    return new KeyCommand[0];
+    return KeyCommand.NONE;
   }
 
   @Override
@@ -110,7 +111,8 @@ public class ReportState extends Decorator implements TranslatablePiece {
       .append(reportFormat)
       .append(NamedKeyStrokeArrayConfigurer.encode(cycleDownKeys))
       .append(StringArrayConfigurer.arrayToString(cycleReportFormat))
-      .append(description);
+      .append(description)
+      .append(noSuppress);
     return ID + se.getValue();
   }
 
@@ -203,9 +205,9 @@ public class ReportState extends Decorator implements TranslatablePiece {
           String reportText = format.getLocalizedText(properties);
 
           if (getMap() != null) {
-            format.setFormat(getMap().getChangeFormat());
+            format.setFormat(getMap().getChangeFormat(noSuppress));
           }
-          else if (!Map.isChangeReportingEnabled()) {
+          else if (!Map.isChangeReportingEnabled() && !noSuppress) {
             format.setFormat("");
           }
           else {
@@ -283,7 +285,7 @@ public class ReportState extends Decorator implements TranslatablePiece {
     else {
       keys = new NamedKeyStroke[encodedKeys.length()];
       for (int i = 0; i < keys.length; i++) {
-        keys[i] = NamedKeyStroke.getNamedKeyStroke(encodedKeys.charAt(i), InputEvent.CTRL_DOWN_MASK);
+        keys[i] = NamedKeyStroke.of(encodedKeys.charAt(i), InputEvent.CTRL_DOWN_MASK);
       }
     }
     reportFormat = st.nextToken("$" + LOCATION_NAME + "$: $" + NEW_UNIT_NAME + "$ *");
@@ -294,11 +296,12 @@ public class ReportState extends Decorator implements TranslatablePiece {
     else {
       cycleDownKeys = new NamedKeyStroke[encodedCycleDownKeys.length()];
       for (int i = 0; i < cycleDownKeys.length; i++) {
-        cycleDownKeys[i] = NamedKeyStroke.getNamedKeyStroke(encodedCycleDownKeys.charAt(i), InputEvent.CTRL_DOWN_MASK);
+        cycleDownKeys[i] = NamedKeyStroke.of(encodedCycleDownKeys.charAt(i), InputEvent.CTRL_DOWN_MASK);
       }
     }
     cycleReportFormat = StringArrayConfigurer.stringToArray(st.nextToken(""));
     description = st.nextToken("");
+    noSuppress = st.nextBoolean(false);
   }
 
   @Override
@@ -330,8 +333,8 @@ public class ReportState extends Decorator implements TranslatablePiece {
     if (! Objects.equals(reportFormat, c.reportFormat)) return false;
     if (!Arrays.equals(cycleDownKeys, c.cycleDownKeys)) return false;
     if (!Arrays.equals(cycleReportFormat, c.cycleReportFormat)) return false;
+    if (!Objects.equals(noSuppress, c.noSuppress)) return false;
     return Objects.equals(description, c.description);
-
   }
 
   public static final String OLD_UNIT_NAME = "oldPieceName"; // NON-NLS
@@ -354,6 +357,7 @@ public class ReportState extends Decorator implements TranslatablePiece {
     private final NamedKeyStrokeArrayConfigurer cycleDownKeys;
     protected StringConfigurer descInput;
     private final TraitConfigPanel box;
+    private final BooleanConfigurer noSuppressConfig;
 
     public Ed(ReportState piece) {
 
@@ -391,6 +395,9 @@ public class ReportState extends Decorator implements TranslatablePiece {
       cycleDownKeys = new NamedKeyStrokeArrayConfigurer(piece.cycleDownKeys);
       box.add(cycleDownLabel, cycleDownKeys);
 
+      noSuppressConfig = new BooleanConfigurer(piece.noSuppress);
+      box.add("Editor.ReportState.no_suppress", noSuppressConfig);
+
       adjustVisibilty();
     }
 
@@ -421,7 +428,8 @@ public class ReportState extends Decorator implements TranslatablePiece {
         .append(format.getValueString())
         .append(cycleDownKeys.getValueString())
         .append(cycleFormat.getValueString())
-        .append(descInput.getValueString());
+        .append(descInput.getValueString())
+        .append(noSuppressConfig.getValueString());
       return ID + se.getValue();
     }
   }

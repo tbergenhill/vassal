@@ -21,7 +21,7 @@ package VASSAL.counters;
 import VASSAL.tools.LoopControl;
 import VASSAL.tools.NamedKeyStroke;
 import java.lang.reflect.InvocationTargetException;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TriggerActionSerializeTest extends DecoratorTest {
 
@@ -36,13 +36,13 @@ public class TriggerActionSerializeTest extends DecoratorTest {
     // Complex Trait
     trait = new TriggerAction();
     trait.command = "xyzzy";
-    trait.key = new NamedKeyStroke("key");
+    trait.key = NamedKeyStroke.of("key");
     trait.propertyMatch.setExpression("{abc==2}");
-    trait.watchKeys = new NamedKeyStroke[] { new NamedKeyStroke("key1"), new NamedKeyStroke("key2") };
-    trait.actionKeys = new NamedKeyStroke[] { new NamedKeyStroke("key3"), new NamedKeyStroke("key4") };
+    trait.watchKeys = new NamedKeyStroke[] { NamedKeyStroke.of("key1"), NamedKeyStroke.of("key2") };
+    trait.actionKeys = new NamedKeyStroke[] { NamedKeyStroke.of("key3"), NamedKeyStroke.of("key4") };
     trait.loop = true;
-    trait.preLoopKey = new NamedKeyStroke("pre");
-    trait.postLoopKey = new NamedKeyStroke("post");
+    trait.preLoopKey = NamedKeyStroke.of("pre");
+    trait.postLoopKey = NamedKeyStroke.of("post");
     trait.loopType = LoopControl.LOOP_COUNTED;
     trait.whileExpression.setExpression("{def==3}");
     trait.untilExpression.setExpression("{ghi==4}");

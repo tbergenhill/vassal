@@ -19,7 +19,7 @@ package VASSAL.counters;
 
 import VASSAL.tools.NamedKeyStroke;
 import java.lang.reflect.InvocationTargetException;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class ReturnToDeckTest extends DecoratorTest {
 
@@ -34,7 +34,7 @@ public class ReturnToDeckTest extends DecoratorTest {
     // Set a Command and Named KeyStroke
     trait = createTrait();
     trait.returnCommand = "Plugh";
-    trait.returnKey = new NamedKeyStroke("xyzzy");
+    trait.returnKey = NamedKeyStroke.of("xyzzy");
     trait.deckId = "aDeck";
     trait.selectDeckPrompt = "prompt";
     trait.description = "plover";

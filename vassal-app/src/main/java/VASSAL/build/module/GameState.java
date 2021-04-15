@@ -109,7 +109,6 @@ public class GameState implements CommandEncoder {
   protected File lastSaveFile = null;
   protected DirectoryConfigurer savedGameDirectoryPreference;
   protected String loadComments;
-  private boolean gameLoadingInForeground; // Will be set to true by loadGameInForeground to block setup method
 
   //public GameState() {}
 
@@ -193,7 +192,7 @@ public class GameState implements CommandEncoder {
 
         final Logger log = GameModule.getGameModule().getLogger();
         if (log instanceof BasicLogger) {
-          ((BasicLogger)log).setMultiPlayer(GameModule.getGameModule().getPlayerRoster().isMultiPlayer());
+          ((BasicLogger)log).setMultiPlayer(GameModule.getGameModule().isMultiPlayer());
         }
 
         setup(true);
@@ -238,6 +237,14 @@ public class GameState implements CommandEncoder {
   public boolean isModified() {
     final String s = saveString();
     return s != null && !s.equals(lastSave);
+  }
+
+
+  /**
+   * @return true if saveGame action is enabled (mainly to detect if logging can start)
+   */
+  public boolean isSaveEnabled() {
+    return saveGame != null && saveGame.isEnabled();
   }
 
   /**
@@ -352,11 +359,11 @@ public class GameState implements CommandEncoder {
    * on all registered {@link GameComponent} objects.
    */
   public void setup(boolean gameStarting) {
-    if (gameLoadingInForeground) {
-      return;
-    }
-
     final GameModule g = GameModule.getGameModule();
+
+    if (g.isRefreshingSemaphore()) {
+      return; // Blocks setup method during Game Refresh
+    }
 
     if (!gameStarting && gameStarted && isModified()) {
       switch (JOptionPane.showConfirmDialog(
@@ -374,6 +381,7 @@ public class GameState implements CommandEncoder {
     }
 
     this.gameStarting = gameStarting;
+
     if (!gameStarting) {
       pieces.clear();
     }
@@ -382,6 +390,8 @@ public class GameState implements CommandEncoder {
     saveGame.setEnabled(gameStarting);
     saveGameAs.setEnabled(gameStarting);
     closeGame.setEnabled(gameStarting);
+
+    g.resetSourcesAndListeners();
 
     if (gameStarting) {
       g.getWizardSupport().showGameSetupWizard();
@@ -536,12 +546,23 @@ public class GameState implements CommandEncoder {
         loadContinuation(f);
       }
       else {
-        if (gameStarted) { //BR// New preferred style load for vlogs is close the old stuff and hard-reset to the new log state.
-          GameModule.getGameModule().setGameFileMode(GameModule.GameFileMode.NEW_GAME);
-          setup(false);
-        }
         g.setGameFile(f.getName(), GameModule.GameFileMode.LOADED_GAME);
-        loadGameInBackground(f);
+
+        //BR// New preferred style load for vlogs is close the old stuff and hard-reset to the new log state.
+        if (gameStarted) {
+          GameModule.getGameModule().setGameFileMode(GameModule.GameFileMode.NEW_GAME);
+          
+          GameModule.getGameModule().setLoadOverSemaphore(true); // Stop updating Map UI etc for a bit
+          try {
+            loadGameInForeground(f); // Foreground loading minimizes the bad behavior of windows during vlog load "mid game"
+          }
+          finally {
+            GameModule.getGameModule().setLoadOverSemaphore(false); // Resume normal UI updates
+          }
+        }
+        else {
+          loadGameInBackground(f);
+        }
       }
 
       lastSaveFile = f;
@@ -595,7 +616,9 @@ public class GameState implements CommandEncoder {
 
       try {
         saveGame(lastSaveFile);
-        GameModule.getGameModule().setGameFile(lastSaveFile.getName(), GameModule.GameFileMode.SAVED_GAME);
+        if (!GameModule.getGameModule().isReplayingOrLogging()) {
+          GameModule.getGameModule().setGameFile(lastSaveFile.getName(), GameModule.GameFileMode.SAVED_GAME);
+        }
       }
       catch (IOException e) {
         WriteErrorDialog.error(e, lastSaveFile);
@@ -622,7 +645,9 @@ public class GameState implements CommandEncoder {
       try {
         saveGame(saveFile);
         lastSaveFile = saveFile;
-        g.setGameFile(saveFile.getName(), GameModule.GameFileMode.SAVED_GAME);
+        if (!GameModule.getGameModule().isReplayingOrLogging()) {
+          g.setGameFile(saveFile.getName(), GameModule.GameFileMode.SAVED_GAME);
+        }
       }
       catch (IOException e) {
         WriteErrorDialog.error(e, saveFile);
@@ -647,8 +672,11 @@ public class GameState implements CommandEncoder {
     if (fc.showSaveDialog() != FileChooser.APPROVE_OPTION) return null;
 
     File file = fc.getSelectedFile();
-    if (file.getName().indexOf('.') == -1)
+
+    // append .vsav if it's not there already
+    if (!file.getName().endsWith(".vsav")) {
       file = new File(file.getParent(), file.getName() + ".vsav"); //NON-NLS
+    }
 
     return file;
   }
@@ -699,7 +727,17 @@ public class GameState implements CommandEncoder {
   public void loadContinuation(File f) throws IOException {
     final GameModule g = GameModule.getGameModule();
     g.warn(Resources.getString("GameState.loading", f.getName()));  //$NON-NLS-1$
-    Command c = decodeSavedGame(f);
+
+    Command c;
+
+    g.setLoadingContinuationSemaphore(true); //BR// So we won't thrash the listeners while decoding.
+    try {
+      c = decodeSavedGame(f);
+    }
+    finally {
+      g.setLoadingContinuationSemaphore(false);
+    }
+
     final CommandFilter filter = new CommandFilter() {
       @Override
       protected boolean accept(Command c) {
@@ -877,16 +915,39 @@ public class GameState implements CommandEncoder {
     ModuleManagerUpdateHelper.sendGameUpdate(f);
   }
 
+
+  public void loadGameInForeground(final File f) {
+    try {
+      loadGameInForeground(
+        f.getName(),
+        new BufferedInputStream(Files.newInputStream(f.toPath()))
+      );
+    }
+    catch (IOException e) {
+      ReadErrorDialog.error(e, f);
+    }
+  }
+
   public void loadGameInForeground(final String shortName,
                                    final InputStream in) throws IOException {
+    GameModule.getGameModule().warn(
+      Resources.getString("GameState.loading", shortName));  //$NON-NLS-1$
+
     final Command loadCommand = decodeSavedGame(in);
     if (loadCommand != null) {
       try {
-        gameLoadingInForeground = true;
         loadCommand.execute();
       }
       finally {
-        gameLoadingInForeground = false;
+        String msg;
+        if (loadComments != null && loadComments.length() > 0) {
+          msg = "!" + Resources.getString("GameState.loaded", shortName) + ": <b>" + loadComments + "</b>"; //$NON-NLS-1$
+        }
+        else {
+          msg = Resources.getString("GameState.loaded", shortName); //$NON-NLS-1$
+        }
+        GameModule.getGameModule().setGameFile(shortName, GameModule.GameFileMode.LOADED_GAME);
+        GameModule.getGameModule().warn(msg);
       }
     }
   }

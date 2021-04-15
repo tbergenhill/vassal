@@ -77,7 +77,7 @@ public class SetGlobalProperty extends DynamicProperty {
 
   @Override
   public String getDescription() {
-    return buildDescription("Editor.SetGlobalProperty.trait_description", description);
+    return buildDescription("Editor.SetGlobalProperty.trait_description", key, description);
   }
 
   @Override
@@ -311,7 +311,7 @@ public class SetGlobalProperty extends DynamicProperty {
       minConfig = new IntConfigurer(m.getMinimumValue());
       controls.add(minLabel, minConfig);
 
-      maxLabel = new JLabel(Resources.getString("Editor.GlobalProperty.minimum_value"));
+      maxLabel = new JLabel(Resources.getString("Editor.GlobalProperty.maximum_value"));
       maxConfig = new IntConfigurer(m.getMaximumValue());
       controls.add(maxLabel, maxConfig);
 

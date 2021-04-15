@@ -138,6 +138,7 @@ public class BasicLogger implements Logger, Buildable, GameComponent, CommandEnc
     mm.addAction("BasicLogger.end_logfile", endLogAction); //NON-NLS
 
     JButton button = mod.getToolBar().add(undoAction);
+    button.setFocusable(false); //BR// Since for some reason we're manually making a raw "JButton" here, need to make it not focusable (so it won't start stealing keystrokes from the main window)
     button.setToolTipText(Resources.getString("BasicLogger.undo_last_move"));  //$NON-NLS-1$
     button.setAlignmentY((float) 0.0);
 
@@ -148,7 +149,7 @@ public class BasicLogger implements Logger, Buildable, GameComponent, CommandEnc
     final NamedKeyStrokeListener undoKeyListener = new NamedKeyStrokeListener(undoAction, null);
     mod.addKeyStrokeListener(undoKeyListener);
 
-    final NamedKeyStrokeListener stepKeyListener = new NamedKeyStrokeListener(stepAction, NamedKeyStroke.getNamedKeyStroke(KeyEvent.VK_PAGE_DOWN, 0));
+    final NamedKeyStrokeListener stepKeyListener = new NamedKeyStrokeListener(stepAction, NamedKeyStroke.of(KeyEvent.VK_PAGE_DOWN, 0));
     mod.addKeyStrokeListener(stepKeyListener);
 
     final KeyStrokeListener newLogKeyListener = new KeyStrokeListener(newLogAction, KeyStroke.getKeyStroke(KeyEvent.VK_W, InputEvent.ALT_DOWN_MASK));
@@ -308,15 +309,22 @@ public class BasicLogger implements Logger, Buildable, GameComponent, CommandEnc
    * Step forward through the currently replaying vlog logfile, by getting the next {@link Command} and executing it.
    */
   protected void step() {
+    if (!isReplaying()) {
+      return; //BR// key held down can stack up extra calls to this in spite of "setEnabled(false)"
+    }
+
+    final GameModule g = GameModule.getGameModule();
+
     final Command c = logInput.get(nextInput++);
     c.execute();
-    GameModule.getGameModule().sendAndLog(c);
+    g.sendAndLog(c);
     stepAction.setEnabled(isReplaying());
     if (!isReplaying()) {
-      if (GameModule.GameFileMode.REPLAYING_GAME.equals(GameModule.getGameModule().getGameFileMode())) {
-        GameModule.getGameModule().setGameFileMode(GameModule.GameFileMode.REPLAYED_GAME);
+      if (GameModule.GameFileMode.REPLAYING_GAME.equals(g.getGameFileMode())) {
+        g.setGameFileMode(GameModule.GameFileMode.REPLAYED_GAME);
       }
     }
+
     if (!isReplaying()) {
       queryNewLogFile(false);
     }
@@ -327,7 +335,9 @@ public class BasicLogger implements Logger, Buildable, GameComponent, CommandEnc
    * @param atStart true if prompting because we're just starting a session; false if prompting because we just finished replaying a logfile.
    */
   public void queryNewLogFile(boolean atStart) {
-    if (isLogging()) {
+    final GameModule g = GameModule.getGameModule();
+
+    if (isLogging() || !g.getGameState().isSaveEnabled()) {
       return;
     }
 
@@ -342,8 +352,6 @@ public class BasicLogger implements Logger, Buildable, GameComponent, CommandEnc
       prefName = PROMPT_NEW_LOG_END;
       prompt = Resources.getString("BasicLogger.replay_completed");  //$NON-NLS-1$
     }
-
-    final GameModule g = GameModule.getGameModule();
 
     if (Boolean.TRUE.equals(g.getPrefs().getValue(prefName))) {
       final Object[] options = {
@@ -419,8 +427,11 @@ public class BasicLogger implements Logger, Buildable, GameComponent, CommandEnc
     if (fc.showSaveDialog() != FileChooser.APPROVE_OPTION) return null;
 
     File file = fc.getSelectedFile();
-    if (file.getName().indexOf('.') == -1)
+
+    // append .vlog if it's not there already
+    if (!file.getName().endsWith(".vlog")) {
       file = new File(file.getParent(), file.getName() + ".vlog"); //NON-NLS
+    }
 
     // warn user if overwriting log from an old version
     if (file.exists()) {
@@ -461,6 +472,9 @@ public class BasicLogger implements Logger, Buildable, GameComponent, CommandEnc
 
     logOutput.clear();
     beginningState = gm.getGameState().getRestoreCommand();
+    if (beginningState == null) {
+      return;
+    }
 
     undoAction.setEnabled(false);
     endLogAction.setEnabled(true);
@@ -474,6 +488,10 @@ public class BasicLogger implements Logger, Buildable, GameComponent, CommandEnc
    * This handles the UNDO button, executing the actual "Undo".
    */
   protected void undo() {
+    if (nextUndo < 0) {
+      return; //BR// Throw away extra keys-held-down when nothing left to do
+    }
+
     final Command lastOutput = logOutput.get(nextUndo);
     final Command lastInput = (nextInput > logInput.size() || nextInput < 1) ?
       null : logInput.get(nextInput - 1);
@@ -553,10 +571,12 @@ public class BasicLogger implements Logger, Buildable, GameComponent, CommandEnc
     @Override
     public void actionPerformed(ActionEvent e) {
       try {
-        write();
-        GameModule.getGameModule().warn(Resources.getString("BasicLogger.logfile_written"));  //$NON-NLS-1$
+        if (beginningState != null) {
+          write();
+          GameModule.getGameModule().warn(Resources.getString("BasicLogger.logfile_written"));  //$NON-NLS-1$
+          GameModule.getGameModule().setGameFileMode(GameModule.GameFileMode.LOGGED_GAME);
+        }
         newLogAction.setEnabled(true);
-        GameModule.getGameModule().setGameFileMode(GameModule.GameFileMode.LOGGED_GAME);
         outputFile = null;
       }
       catch (IOException ex) {
@@ -624,6 +644,7 @@ public class BasicLogger implements Logger, Buildable, GameComponent, CommandEnc
       return c;
     }
   }
+
   public class StepAction extends AbstractAction {
     private static final long serialVersionUID = 1L;
 

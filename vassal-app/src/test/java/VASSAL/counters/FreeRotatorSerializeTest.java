@@ -1,8 +1,8 @@
 package VASSAL.counters;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import VASSAL.tools.NamedKeyStroke;
 
@@ -12,9 +12,9 @@ public class FreeRotatorSerializeTest extends SerializeTest<FreeRotator> {
     FreeRotator fr = new FreeRotator();
     int length = 1;
     setAngles(fr, length);
-    fr.setAngleKey = new NamedKeyStroke("A");
+    fr.setAngleKey = NamedKeyStroke.of("A");
     fr.setAngleText = "testAngleText";
-    fr.rotateRNDKey = new NamedKeyStroke("B");
+    fr.rotateRNDKey = NamedKeyStroke.of("B");
     fr.rotateRNDText = "testRotateRNDText";
     fr.name = "testName";
 
@@ -26,11 +26,11 @@ public class FreeRotatorSerializeTest extends SerializeTest<FreeRotator> {
     FreeRotator fr = new FreeRotator();
     int length = 5;
     setAngles(fr, length);
-    fr.rotateCWKey = new NamedKeyStroke("B");
-    fr.rotateCCWKey = new NamedKeyStroke("B");
+    fr.rotateCWKey = NamedKeyStroke.of("B");
+    fr.rotateCCWKey = NamedKeyStroke.of("B");
     fr.rotateCWText = "testRotateCWText";
     fr.rotateCCWText = "testRotateCCWText";
-    fr.rotateRNDKey = new NamedKeyStroke("B");
+    fr.rotateRNDKey = NamedKeyStroke.of("B");
     fr.rotateRNDText = "testRotateRNDText";
     fr.name = "testName";
 

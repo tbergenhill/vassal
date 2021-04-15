@@ -1,8 +1,8 @@
 package VASSAL.counters;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import VASSAL.tools.NamedKeyStroke;
 
@@ -12,7 +12,7 @@ public class DeleteSerializeTest extends SerializeTest<Delete> {
   public void serialize() throws Exception {
     Delete delete = new Delete();
     delete.commandName = "testCommandName";
-    delete.key = new NamedKeyStroke("A");
+    delete.key = NamedKeyStroke.of("A");
     super.serializeTest(Delete.class, delete);
   }
 

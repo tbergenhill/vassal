@@ -52,6 +52,7 @@ import VASSAL.configure.DirectoryConfigurer;
 import VASSAL.preferences.Prefs;
 import VASSAL.preferences.ReadOnlyPrefs;
 import VASSAL.tools.ErrorDialog;
+import VASSAL.tools.ThrowableUtils;
 import VASSAL.tools.WarningDialog;
 import VASSAL.tools.concurrent.FutureUtils;
 import VASSAL.tools.filechooser.FileChooser;
@@ -256,7 +257,6 @@ public abstract class AbstractLaunchAction extends AbstractAction {
 
       // set default heap size
       int maximumHeap = DEFAULT_MAXIMUM_HEAP;
-      int initialHeap = DEFAULT_MAXIMUM_HEAP;
 
       String moduleName = null;
 
@@ -306,7 +306,7 @@ public abstract class AbstractLaunchAction extends AbstractAction {
 // actions.
       // maximum heap must fit in physical RAM
       if (maximumHeap > PHYS_MEMORY) {
-        initialHeap = maximumHeap = FAILSAFE_MAXIMUM_HEAP;
+        maximumHeap = FAILSAFE_MAXIMUM_HEAP;
 
         FutureUtils.wait(WarningDialog.show(
           "Warning.maximum_heap_too_large", //NON-NLS
@@ -315,13 +315,15 @@ public abstract class AbstractLaunchAction extends AbstractAction {
       }
       // maximum heap must be at least the failsafe size
       else if (maximumHeap < FAILSAFE_MAXIMUM_HEAP) {
-        initialHeap = maximumHeap = FAILSAFE_MAXIMUM_HEAP;
+        maximumHeap = FAILSAFE_MAXIMUM_HEAP;
 
         FutureUtils.wait(WarningDialog.show(
           "Warning.maximum_heap_too_small", //NON-NLS
           FAILSAFE_MAXIMUM_HEAP
         ));
       }
+
+      final int initialHeap = maximumHeap;
 
       final List<String> argumentList = buildArgumentList(moduleName);
       final String[] args = argumentList.toArray(new String[0]);
@@ -422,7 +424,23 @@ public abstract class AbstractLaunchAction extends AbstractAction {
       catch (CancellationException e) {
         // this means that loading was cancelled
       }
-      catch (ExecutionException | InterruptedException e) {
+      catch (ExecutionException e) {
+        if (SystemUtils.IS_OS_WINDOWS &&
+            ThrowableUtils.getAncestor(IOException.class, e) != null) {
+          final String msg = e.getMessage();
+          if (msg.contains("jre\\bin\\java") && msg.contains("CreateProcess")) {
+            ErrorDialog.showDetails(
+              e,
+              ThrowableUtils.getStackTrace(e),
+              "Error.possible_windows_av_interference",
+              msg
+            );
+            return;
+          }
+        }
+        ErrorDialog.bug(e);
+      }
+      catch (InterruptedException e) {
         ErrorDialog.bug(e);
       }
       finally {
@@ -447,9 +465,9 @@ public abstract class AbstractLaunchAction extends AbstractAction {
       final String userDir = System.getProperty("user.dir");
       if (userDir != null) result.add("-Duser.dir=" + userDir); //NON-NLS
 
-      // pass on VASSAL's home dir, if it's set
-      final String vHome = System.getProperty("VASSAL.home");
-      if (vHome != null) result.add("-DVASSAL.home=" + vHome); //NON-NLS
+      // pass on VASSAL's conf dir, if it's set
+      final String vConf = System.getProperty("VASSAL.conf");
+      if (vConf != null) result.add("-DVASSAL.conf=" + vConf); //NON-NLS
 
       // set the classpath
       result.add("-cp"); //NON-NLS

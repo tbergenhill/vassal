@@ -39,6 +39,7 @@ import java.awt.event.MouseMotionListener;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import javax.swing.JComponent;
@@ -50,6 +51,7 @@ import VASSAL.build.AutoConfigurable;
 import VASSAL.build.Buildable;
 import VASSAL.build.GameModule;
 import VASSAL.build.IllegalBuildException;
+import VASSAL.build.module.GlobalOptions;
 import VASSAL.build.module.Map;
 import VASSAL.build.module.documentation.HelpFile;
 import VASSAL.build.module.map.boardPicker.Board;
@@ -609,7 +611,14 @@ public class CounterDetailViewer extends AbstractConfigurable implements Drawabl
       dispatcher.accept(allPieces[i]);
     }
 
-    return visitor.getPieces();
+    if (GlobalOptions.getInstance().isReverseStackViewerOrder()) {
+      final List<GamePiece> list = visitor.getPieces();
+      Collections.reverse(list);
+      return list;
+    }
+    else {
+      return visitor.getPieces();
+    }
   }
 
   /**
@@ -640,14 +649,17 @@ public class CounterDetailViewer extends AbstractConfigurable implements Drawabl
         return false;
       }
 
-      if (Boolean.TRUE.equals(piece.getProperty(Properties.NON_MOVABLE)) && !showNonMovable) {
-        return false;
+      if (Boolean.TRUE.equals(piece.getProperty(Properties.NON_MOVABLE))) {
+        if (!showNonMovable) {
+          return false;
+        }
       }
-
-      if (Boolean.TRUE.equals(piece.getProperty(Properties.TERRAIN)) && !showMoveSelected) {
-        return false;
+      else {
+        //BR// This needs to be in "else" case because Properties.TERRAIN also returns true for non-movable.
+        if (Boolean.TRUE.equals(piece.getProperty(Properties.TERRAIN)) && !showMoveSelected) {
+          return false;
+        }
       }
-
 
       // Deck?
       if (piece.getParent() instanceof Deck && !showDeck) {

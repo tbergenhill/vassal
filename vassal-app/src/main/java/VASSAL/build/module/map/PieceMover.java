@@ -728,10 +728,8 @@ public class PieceMover extends AbstractBuildable
           p = map.snapTo(p);
         }
 
-        if (offset == null) {
-          offset = new Point(p.x - dragging.getPosition().x,
-                             p.y - dragging.getPosition().y);
-        }
+        offset = new Point(p.x - dragging.getPosition().x,
+                           p.y - dragging.getPosition().y);
 
         // If we've HAVE found a piece to merge with, and we're going to a map that allows stacking, then
         // add our current piece & the mergable one to our cached list of merge targets.
@@ -944,6 +942,7 @@ public class PieceMover extends AbstractBuildable
             !Boolean.TRUE.equals(dragging.getProperty(Properties.IGNORE_GRID)) &&
             (dragging.getParent() == null || !dragging.getParent().isExpanded());
       }
+
       if (useGrid) {
         if (map.equals(DragBuffer.getBuffer().getFromMap())) {
           if (map.snapTo(pt).equals(map.snapTo(dragBegin))) {
@@ -951,11 +950,10 @@ public class PieceMover extends AbstractBuildable
           }
         }
       }
-      else {
-        if (Math.abs(pt.x - dragBegin.x) <= 5 &&
-          Math.abs(pt.y - dragBegin.y) <= 5) {
-          isClick = true;
-        }
+
+      if (map.mapToComponent(Math.abs(pt.x - dragBegin.x)) <= GlobalOptions.getInstance().getDragThreshold() &&
+        map.mapToComponent(Math.abs(pt.y - dragBegin.y)) <= GlobalOptions.getInstance().getDragThreshold()) {
+        isClick = true;
       }
     }
     return isClick;

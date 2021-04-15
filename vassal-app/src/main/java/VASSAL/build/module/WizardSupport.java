@@ -188,6 +188,10 @@ public class WizardSupport {
       }
     }
     else {
+      final Boolean showWizard = (Boolean) Prefs.getGlobalPrefs().getValue(WizardSupport.WELCOME_WIZARD_KEY);
+      if (Boolean.TRUE.equals(showWizard) && g.shutDown()) {
+        System.exit(0);
+      }
       g.getPlayerWindow().setVisible(true);
     }
   }
@@ -222,8 +226,8 @@ public class WizardSupport {
 
   public InitialWelcomeSteps createInitialWelcomeSteps() {
     if (!isRealName()) {
-      return new InitialWelcomeSteps(new String[]{InitialWelcomeSteps.NAME_STEP, ACTION_KEY},
-          new String[]{Resources.getString("WizardSupport.WizardSupport.EnterName"), Resources.getString("WizardSupport.WizardSupport.SelectPlayMode")}); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
+      return new InitialWelcomeSteps(new String[]{ACTION_KEY, InitialWelcomeSteps.NAME_STEP},
+        new String[]{Resources.getString("WizardSupport.WizardSupport.EnterName"), Resources.getString("WizardSupport.WizardSupport.SelectPlayMode")}); //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
     }
     else {
       return new InitialWelcomeSteps(new String[]{ACTION_KEY}, new String[]{Resources.getString("WizardSupport.SelectPlayMode")}); //$NON-NLS-1$
@@ -266,6 +270,13 @@ public class WizardSupport {
       final JComponent c;
       if (NAME_STEP.equals(id)) {
         c = getNameControls(controller, settings);
+
+        if (settings.get(ACTION_KEY).equals(PLAY_ONLINE_ACTION)) {
+          controller.setForwardNavigationMode(WizardController.MODE_CAN_FINISH);
+        }
+        else {
+          controller.setForwardNavigationMode(WizardController.MODE_CAN_CONTINUE);
+        }
       }
       else if (ACTION_KEY.equals(id)) {
         c = getActionControls(controller, settings);
@@ -310,7 +321,7 @@ public class WizardSupport {
         box.add(Box.createVerticalGlue());
         final BooleanConfigurer wizardConf = (BooleanConfigurer)
           Prefs.getGlobalPrefs().getOption(WELCOME_WIZARD_KEY);
-        final JCheckBox show = new JCheckBox(wizardConf.getName());
+        final JCheckBox show = new JCheckBox(wizardConf.getName() + " " + Resources.getString("WizardSupport.Bypass"));
         show.setSelected(wizardConf.booleanValue());
         show.addActionListener(e -> wizardConf.setValue(show.isSelected()));
         box.add(show);
@@ -349,7 +360,8 @@ public class WizardSupport {
       final JRadioButton b = new JRadioButton(Resources.getString("WizardSupport.PlayOnline")); //$NON-NLS-1$
       b.addActionListener(e -> {
         settings.put(WizardSupport.ACTION_KEY, PLAY_ONLINE_ACTION);
-        controller.setForwardNavigationMode(WizardController.MODE_CAN_FINISH);
+        settings.put(POST_INITIAL_STEPS_WIZARD, null);
+        controller.setForwardNavigationMode(isRealName() ? WizardController.MODE_CAN_FINISH : WizardController.MODE_CAN_CONTINUE);
         controller.setProblem(null);
       });
       return b;
@@ -484,7 +496,7 @@ public class WizardSupport {
           final JLabel c = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
           final String labelText =
             value instanceof PredefinedSetup ?
-              ((PredefinedSetup) value).getConfigureName() :
+              ((PredefinedSetup) value).getLocalizedConfigureName() :
               value == null ? "" : value.toString();
           c.setText(labelText);
           return c;
@@ -587,7 +599,7 @@ public class WizardSupport {
         @Override
         protected boolean accept(Command c) {
           return !(c instanceof GameState.SetupCommand) ||
-                 !((GameState.SetupCommand) c).isGameStarting();
+            !((GameState.SetupCommand) c).isGameStarting();
         }
       }.apply(setupCommand);
       return setupCommand;
@@ -628,7 +640,7 @@ public class WizardSupport {
     protected JComponent createPanel(final WizardController controller, String id, final Map settings) {
       if (fileConfig == null) {
         fileConfig = new FileConfigurer(null,
-            Resources.getString("WizardSupport.SavedGame"), GameModule.getGameModule().getGameState().getSavedGameDirectoryPreference()); //$NON-NLS-1$
+          Resources.getString("WizardSupport.SavedGame"), GameModule.getGameModule().getGameState().getSavedGameDirectoryPreference()); //$NON-NLS-1$
         fileConfig.addPropertyChangeListener(new PropertyChangeListener() {
           private Set<File> processing = new HashSet<>();
 
@@ -691,7 +703,7 @@ public class WizardSupport {
       logoSize = new Dimension(icon.getIconWidth(), icon.getIconHeight());
       final BufferedImage img =
         ImageUtils.createCompatibleTranslucentImage(logoSize.width,
-                                                    logoSize.height);
+          logoSize.height);
       final Graphics2D g = img.createGraphics();
       g.setColor(Color.white);
       g.fillRect(0, 0, icon.getIconWidth(), icon.getIconHeight());

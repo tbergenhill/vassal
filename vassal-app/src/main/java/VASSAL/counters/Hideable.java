@@ -236,7 +236,7 @@ public class Hideable extends Decorator implements TranslatablePiece {
         commands = new KeyCommand[] {hideCommand};
       }
       else {
-        commands = new KeyCommand[0];
+        commands = KeyCommand.NONE;
       }
     }
     hideCommand.setEnabled(access.currentPlayerCanModify(hiddenBy));
@@ -347,7 +347,7 @@ public class Hideable extends Decorator implements TranslatablePiece {
       controls.add("Editor.Hideable.background_color", colorConfig);
 
       transpConfig = new IntConfigurer((int) (p.transparency * 100));
-      controls.add("Editor.Hideable.transparency", transpConfig);
+      controls.add("Editor.Hideable.opacity", transpConfig);
 
       accessConfig = new PieceAccessConfigurer(p.access);
       controls.add("Editor.Hideable.can_be_hidden_by", accessConfig);

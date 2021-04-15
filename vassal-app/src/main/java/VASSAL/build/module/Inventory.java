@@ -22,7 +22,6 @@ import java.awt.Component;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
-import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
@@ -77,6 +76,7 @@ import VASSAL.configure.ConfigurerFactory;
 import VASSAL.configure.GamePieceFormattedStringConfigurer;
 import VASSAL.configure.HotKeyConfigurer;
 import VASSAL.configure.IconConfigurer;
+import VASSAL.configure.NamedHotKeyConfigurer;
 import VASSAL.configure.PropertyExpression;
 import VASSAL.configure.StringArrayConfigurer;
 import VASSAL.configure.StringEnumConfigurer;
@@ -97,16 +97,26 @@ import VASSAL.i18n.TranslatableConfigurerFactory;
 import VASSAL.preferences.PositionOption;
 import VASSAL.tools.FormattedString;
 import VASSAL.tools.LaunchButton;
+import VASSAL.tools.NamedKeyStroke;
+import VASSAL.tools.NamedKeyStrokeListener;
 import VASSAL.tools.ScrollPane;
 import VASSAL.tools.WriteErrorDialog;
 import VASSAL.tools.filechooser.FileChooser;
 import VASSAL.tools.swing.SwingUtils;
+
 import org.apache.commons.lang3.ArrayUtils;
 
 public class Inventory extends AbstractToolbarItem
                        implements GameComponent,
                                   PlayerRoster.SideChangeListener {
+
+  /** @deprecated use launch from the superclass */
+  @Deprecated(since = "2021-04-03", forRemoval = true)
   protected LaunchButton launch;
+
+  public static final String REFRESH_HOTKEY = "refreshHotkey"; //NON-NLS
+  protected NamedKeyStrokeListener refreshListener;
+
   protected CounterInventory results;
   protected JTree tree;
 
@@ -183,7 +193,7 @@ public class Inventory extends AbstractToolbarItem
   public static final String[] FUNCTION_OPTIONS = { FUNCTION_REFRESH, FUNCTION_HIDE };
   public static final String[] FUNCTION_KEYS    = { "Editor.Inventory.function_refresh", //NON-NLS
                                                     "Editor.Inventory.function_hide"}; //NON-NLS
-  protected String launchFunction = FUNCTION_REFRESH;
+  protected String launchFunction = FUNCTION_HIDE; //BR// This default is "more like how most toolbar buttons work"
 
   protected String sortStrategy = ALPHA;
 
@@ -202,11 +212,17 @@ public class Inventory extends AbstractToolbarItem
 
 
   public Inventory() {
-    final ActionListener al = e -> launch();
-    launch = makeLaunchButton(Resources.getString("Inventory.show_inventory"),
-                              Resources.getString("Inventory.inventory"),
-                             "/images/inventory.gif", //NON-NLS
-                              al);
+    setLaunchButton(makeLaunchButton(
+      Resources.getString("Inventory.show_inventory"),
+      Resources.getString("Inventory.inventory"),
+      "/images/inventory.gif", //NON-NLS
+      e -> launch()
+    ));
+    launch = getLaunchButton(); // for compatibility
+
+    refreshListener = new NamedKeyStrokeListener(e -> refresh());
+    GameModule.getGameModule().addKeyStrokeListener(refreshListener);
+
     getLaunchButton().setEnabled(false);
     getLaunchButton().setVisible(false);
   }
@@ -460,7 +476,7 @@ public class Inventory extends AbstractToolbarItem
       if (p instanceof Decorator || p instanceof BasicPiece) {
         for (final String s : groupBy) {
           if (s.length() > 0) {
-            final String prop = (String) p.getProperty(s);
+            final String prop = (String) p.getLocalizedProperty(s);
             if (prop != null)
               groups.add(prop);
           }
@@ -519,7 +535,8 @@ public class Inventory extends AbstractToolbarItem
       Resources.getString("Editor.Inventory.draw_piece"), //$NON-NLS-1$
       Resources.getString("Editor.Inventory.zoom"), //$NON-NLS-1$
       Resources.getString("Editor.Inventory.available"), //$NON-NLS-1$
-      Resources.getString("Editor.Inventory.function") //$NON-NLS-1$
+      Resources.getString("Editor.Inventory.function"), //$NON-NLS-1$
+      Resources.getString("Editor.Inventory.refresh_hotkey")
     );
   }
 
@@ -541,7 +558,8 @@ public class Inventory extends AbstractToolbarItem
       Boolean.class,
       Double.class,
       String[].class,
-      FunctionConfig.class
+      FunctionConfig.class,
+      NamedKeyStroke.class
     );
   }
 
@@ -563,7 +581,8 @@ public class Inventory extends AbstractToolbarItem
       DRAW_PIECES,
       PIECE_ZOOM,
       SIDES,
-      LAUNCH_FUNCTION
+      LAUNCH_FUNCTION,
+      REFRESH_HOTKEY
     );
   }
 
@@ -673,6 +692,12 @@ public class Inventory extends AbstractToolbarItem
     else if (LAUNCH_FUNCTION.equals(key)) {
       launchFunction = (String) o;
     }
+    else if (REFRESH_HOTKEY.equals(key)) {
+      if (o instanceof String) {
+        o = NamedHotKeyConfigurer.decode((String) o);
+      }
+      refreshListener.setKeyStroke((NamedKeyStroke) o);
+    }
     else {
       super.setAttribute(key, o);
     }
@@ -759,6 +784,9 @@ public class Inventory extends AbstractToolbarItem
     else if (LAUNCH_FUNCTION.equals(key)) {
       return launchFunction;
     }
+    else if (REFRESH_HOTKEY.equals(key)) {
+      return NamedHotKeyConfigurer.encode(refreshListener.getNamedKeyStroke());
+    }
     else {
       return super.getAttributeValueString(key);
     }
@@ -776,7 +804,9 @@ public class Inventory extends AbstractToolbarItem
       setupLaunch();
     }
     else {
-      frame.setVisible(false);
+      if (!GameModule.getGameModule().isLoadOverSemaphore()) {
+        frame.setVisible(false);
+      }
     }
   }
 

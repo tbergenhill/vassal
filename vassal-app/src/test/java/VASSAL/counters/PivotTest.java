@@ -20,7 +20,7 @@ package VASSAL.counters;
 import VASSAL.tools.NamedKeyStroke;
 import java.lang.reflect.InvocationTargetException;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class PivotTest extends DecoratorTest {
 
@@ -34,7 +34,7 @@ public class PivotTest extends DecoratorTest {
 
     // Complex test
     trait = new Pivot();
-    trait.key = new NamedKeyStroke("xyzzy");
+    trait.key = NamedKeyStroke.of("xyzzy");
     trait.pivotX = 5;
     trait.pivotY = 12;
     trait.fixedAngle = true;

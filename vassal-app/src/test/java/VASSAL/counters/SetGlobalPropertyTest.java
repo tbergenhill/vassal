@@ -26,7 +26,7 @@ import java.awt.Component;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class SetGlobalPropertyTest extends DecoratorTest {
 
@@ -92,7 +92,7 @@ public class SetGlobalPropertyTest extends DecoratorTest {
       }
     });
 
-    DynamicProperty.DynamicKeyCommand command = new DynamicProperty.DynamicKeyCommand("test", new NamedKeyStroke("plover"), piece, piece, changer);
+    DynamicProperty.DynamicKeyCommand command = new DynamicProperty.DynamicKeyCommand("test", NamedKeyStroke.of("plover"), piece, piece, changer);
     List<DynamicProperty.DynamicKeyCommand> commands = new ArrayList<>();
     commands.add(command);
     trait.keyCommandListConfig.setValue (commands);

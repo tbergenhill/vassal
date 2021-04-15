@@ -25,7 +25,7 @@ import VASSAL.build.GameModule;
 import VASSAL.configure.PieceAccessConfigurer;
 import VASSAL.tools.NamedKeyStroke;
 import java.lang.reflect.InvocationTargetException;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
@@ -41,11 +41,11 @@ public class ObscurableTest extends DecoratorTest {
 
     // Peek Style
     trait = creatObscurable();
-    trait.keyCommand = new NamedKeyStroke("xyzzy");
+    trait.keyCommand = NamedKeyStroke.of("xyzzy");
     trait.imageName = "Undo16.gif";
     trait.hideCommand = "plugh";
     trait.displayStyle = 'P';
-    trait.peekKey = new NamedKeyStroke("plover");
+    trait.peekKey = NamedKeyStroke.of("plover");
     trait.maskName = "masked";
     trait.access = PieceAccessConfigurer.decode("side:");
     trait.peekCommand = "peeking";
@@ -54,7 +54,7 @@ public class ObscurableTest extends DecoratorTest {
 
     // Image Style
     trait = creatObscurable();
-    trait.keyCommand = new NamedKeyStroke("xyzzy");
+    trait.keyCommand = NamedKeyStroke.of("xyzzy");
     trait.imageName = "Undo16.gif";
     trait.hideCommand = "plugh";
     trait.displayStyle = 'I';
@@ -67,7 +67,7 @@ public class ObscurableTest extends DecoratorTest {
 
     // Inset Style
     trait = creatObscurable();
-    trait.keyCommand = new NamedKeyStroke("xyzzy");
+    trait.keyCommand = NamedKeyStroke.of("xyzzy");
     trait.imageName = "Undo16.gif";
     trait.hideCommand = "plugh";
     trait.displayStyle = 'I';

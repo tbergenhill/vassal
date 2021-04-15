@@ -164,7 +164,7 @@ public class TurnTracker extends TurnComponent implements CommandEncoder, GameCo
       }
     };
     setConfigureName(Resources.getString("TurnTracker.turn")); //$NON-NLS-1$
-    launch = new LaunchButton(Resources.getString("TurnTracker.turn"), BUTTON_TOOLTIP, BUTTON_TEXT, HOT_KEY, ICON, al); //$NON-NLS-1$
+    launch = new LaunchButton(Resources.getString("TurnTracker.turn"), "", BUTTON_TEXT, HOT_KEY, ICON, al); //$NON-NLS-1$
     launch.setToolTipText(Resources.getString("TurnTracker.turn_tracker")); //$NON-NLS-1$
 
     SET_COMMAND = Resources.getString("TurnTracker.set_turn"); //$NON-NLS-1$
@@ -231,7 +231,7 @@ public class TurnTracker extends TurnComponent implements CommandEncoder, GameCo
    */
   @Override
   public String[] getAttributeNames() {
-    return new String[] { NAME, BUTTON_TEXT, ICON, BUTTON_TOOLTIP, HOT_KEY, NEXT_HOT_KEY, PREV_HOT_KEY, TURN_FORMAT, REPORT_FORMAT, TOOLTIP, LENGTH_STYLE, LENGTH };
+    return new String[] { NAME, BUTTON_TEXT, ICON, HOT_KEY, NEXT_HOT_KEY, PREV_HOT_KEY, TURN_FORMAT, REPORT_FORMAT, TOOLTIP, LENGTH_STYLE, LENGTH };
   }
 
   @Override
@@ -400,7 +400,6 @@ public class TurnTracker extends TurnComponent implements CommandEncoder, GameCo
       Resources.getString("Editor.name_label"),
       Resources.getString("Editor.button_text_label"),
       Resources.getString("Editor.button_icon_label"),
-      Resources.getString("Editor.tooltip_text_label"),
       Resources.getString("Editor.TurnTracker.show_hotkey"),
       Resources.getString("Editor.TurnTracker.next_hotkey"),
       Resources.getString("Editor.TurnTracker.prev_hotkey"),
@@ -418,7 +417,6 @@ public class TurnTracker extends TurnComponent implements CommandEncoder, GameCo
       String.class,
       String.class,
       IconConfig.class,
-      String.class,
       NamedKeyStroke.class,
       NamedKeyStroke.class,
       NamedKeyStroke.class,
@@ -756,7 +754,9 @@ public class TurnTracker extends TurnComponent implements CommandEncoder, GameCo
   @Override
   public void setup(boolean gameStarting) {
     launch.setEnabled(gameStarting);
+
     turnWindow.setVisible(false);
+
     launchWidget.setVisible(isDocked() && gameStarting);
     if (gameStarting) {
       lastCommand.setPropertyValue(SET);
@@ -1217,7 +1217,7 @@ public class TurnTracker extends TurnComponent implements CommandEncoder, GameCo
    */
   @Override
   public List<String> getMenuTextList() {
-    return List.of(getAttributeValueString(BUTTON_TEXT), getAttributeValueString(BUTTON_TOOLTIP), getAttributeValueString(TOOLTIP));
+    return List.of(getAttributeValueString(BUTTON_TEXT), getAttributeValueString(TOOLTIP));
   }
 
   /**
