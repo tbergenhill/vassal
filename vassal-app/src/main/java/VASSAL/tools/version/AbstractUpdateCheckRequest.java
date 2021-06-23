@@ -1,5 +1,4 @@
 /*
- *
  * Copyright (c) 2008 by Joel Uckelman
  *
  * This library is free software; you can redistribute it and/or
@@ -30,7 +29,7 @@ public abstract class AbstractUpdateCheckRequest
                                       extends SwingWorker<Boolean, Void> {
   @Override
   protected Boolean doInBackground() throws IOException {
-    return VersionUtils.isUpdateable(Info.getVersion());
+    return !VersionUtils.isCurrent(Info.getVersion());
   }
 
   @Override

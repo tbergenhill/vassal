@@ -22,35 +22,33 @@
         <method>*</method>
     </difference>
 
-    <difference>
-        <className>VASSAL/tools/ArchiveWriter</className>
-        <differenceType>7006</differenceType>
-        <method>void save()</method>
-        <to>boolean</to>
-        <justification>Editor method -- not a custom class target</justification>
-    </difference>
 
     <difference>
         <className>VASSAL/tools/ArchiveWriter</className>
         <differenceType>7006</differenceType>
-        <method>void save(boolean)</method>
-        <to>boolean</to>
-        <justification>Editor method -- not a custom class target</justification>
+        <method>boolean save()</method>
+        <to>void</to>
     </difference>
-
     <difference>
         <className>VASSAL/tools/ArchiveWriter</className>
         <differenceType>7006</differenceType>
-        <method>void saveAs(boolean)</method>
-        <to>boolean</to>
-        <justification>Editor method -- not a custom class target</justification>
+        <method>boolean save(boolean)</method>
+        <to>void</to>
     </difference>
-
     <difference>
         <className>VASSAL/tools/ArchiveWriter</className>
         <differenceType>7006</differenceType>
-        <method>void saveAs()</method>
-        <to>boolean</to>
-        <justification>Editor method -- not a custom class target</justification>
+        <method>boolean saveAs()</method>
+        <to>void</to>
     </difference>
+    <difference>
+        <className>VASSAL/tools/ArchiveWriter</className>
+        <differenceType>7006</differenceType>
+        <method>boolean saveAs(boolean)</method>
+        <to>void</to>
+    </difference>
+
+
+
+
 </differences>

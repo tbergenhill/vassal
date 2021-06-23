@@ -24,7 +24,7 @@
                     <dependency>
                         <groupId>org.asciidoctor</groupId>
                         <artifactId>asciidoctorj-pdf</artifactId>
-                        <version>1.5.4</version>
+                        <version>1.6.0</version>
                     </dependency>
                 </dependencies>
                 <executions>
@@ -39,9 +39,6 @@
                             <outputDirectory>${project.build.outputDirectory}</outputDirectory>
                             <backend>html</backend>
                             <preserveDirectories>true</preserveDirectories>
-                            <attributes>
-                                <filetype>htm</filetype>
-                            </attributes>
                         </configuration>
                     </execution>
                     <execution>

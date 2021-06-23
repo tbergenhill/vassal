@@ -17,6 +17,7 @@
  */
 package VASSAL.configure;
 
+import VASSAL.build.AbstractBuildable;
 import VASSAL.build.AbstractConfigurable;
 import VASSAL.build.Buildable;
 import VASSAL.build.Builder;
@@ -611,6 +612,15 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
     if (sourceNode == null) {
       return false;
     }
+
+    // We can always be dragged/pasted onto our own parent.
+    final DefaultMutableTreeNode parent = (DefaultMutableTreeNode) sourceNode.getParent();
+    if (parent != null) {
+      if (parent.getUserObject().equals(target)) {
+        return true;
+      }
+    }
+
     return isValidParent(target, (Configurable) sourceNode.getUserObject());
   }
 
@@ -752,7 +762,7 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
           if (peerInserts != null) {
             final Configurable parent = ((Configurable)parentNode.getUserObject());
             for (final Class<? extends Buildable> newConfig : parent.getAllowableConfigureComponents()) {
-              peerInserts.add(buildAddAction(parent, newConfig, "Editor.ConfigureTree.add_peer", parentNode.getIndex(targetNode) + 1, null));
+              peerInserts.add(buildAddAction(parent, newConfig, "Editor.ConfigureTree.add_peer", parentNode.getIndex(targetNode), null));
             }
           }
         }
@@ -804,14 +814,24 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
 
         if (ch != null) {
           final Configurable child = ch;
+
+          //BR// We do an early & extra set of the ancestor before build so that if, during the addTo() sequence,
+          //BR// an item in an AbstractFolder needs to know its "first non-folder ancestor", it can walk up the
+          //BR// tree as necessary.
+          if (ch instanceof AbstractBuildable) {
+            ((AbstractBuildable)ch).setAncestor(target);
+          }
+
           child.build((duplicate != null) ? duplicate.getBuildElement(Builder.createNewDocument()) : null);
 
           if (child instanceof PieceSlot) {
             ((PieceSlot) child).updateGpId(GameModule.getGameModule());
           }
 
+          final int finalIndex = (index < 0) ? getTreeNode(target).getChildCount() : checkMinimumIndex(getTreeNode(target), index);
+
           if (child.getConfigurer() != null) {
-            if (insert(target, child, (index < 0) ? getTreeNode(target).getChildCount() : index)) {
+            if (insert(target, child, finalIndex)) {
               if (duplicate != null) {
                 updateGpIds(child);
               }
@@ -833,7 +853,7 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
             }
           }
           else {
-            insert(target, child, (index < 0) ? getTreeNode(target).getChildCount() : index);
+            insert(target, child, finalIndex);
             if (duplicate != null) {
               updateGpIds(child);
             }
@@ -2350,7 +2370,7 @@ public class ConfigureTree extends JTree implements PropertyChangeListener, Mous
         return false;
       }
 
-      // If we're editing an extension, components owned by the moduel can never be dragged
+      // If we're editing an extension, components owned by the module can never be dragged
       if (tree instanceof ExtensionTree) {
         final ExtensionTree xTree = (ExtensionTree) tree;
         if (!xTree.isEditable(firstNode)) {

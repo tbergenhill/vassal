@@ -18,6 +18,8 @@
 package VASSAL.build.module;
 
 import static java.lang.Math.round;
+
+import VASSAL.configure.SingleChildInstance;
 import java.awt.AWTEventMulticaster;
 import java.awt.AlphaComposite;
 import java.awt.Color;
@@ -72,9 +74,11 @@ import javax.swing.RootPaneContainer;
 import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
 
+import VASSAL.build.module.folder.MapSubFolder;
 import VASSAL.launch.PlayerWindow;
 import VASSAL.preferences.GlobalPrefs;
 
+import VASSAL.tools.NamedKeyStrokeListener;
 import net.miginfocom.swing.MigLayout;
 
 import org.apache.commons.lang3.SystemUtils;
@@ -236,8 +240,8 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
   @Deprecated(since = "2021-04-03", forRemoval = true)
   protected LaunchButton launchButton;
 
-  protected boolean useLaunchButton = false;
-  protected boolean useLaunchButtonEdit = false;
+  protected boolean useLaunchButton = false;     //BR// True if useLaunchButton was active at beginning of SESSION (now used ONLY for should-dock-to-main-window decisions)
+  protected boolean useLaunchButtonEdit = false; //BR// True if currently set to use Launch Button.
   protected String markMovedOption = GlobalOptions.ALWAYS;
   protected String markUnmovedIcon = "/images/unmoved.gif"; //$NON-NLS-1$
   protected String markUnmovedText = ""; //$NON-NLS-1$
@@ -269,6 +273,9 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
   protected PieceMover pieceMover;
   protected KeyListener[] saveKeyListeners = null;
 
+  protected NamedKeyStrokeListener showKeyListener;
+  protected NamedKeyStrokeListener hideKeyListener;
+
   private IntConfigurer preferredScrollConfig;
 
   public Map() {
@@ -285,6 +292,38 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
     }
     toolBar.setAlignmentX(0.0F);
     toolBar.setFloatable(false);
+
+    showKeyListener = new NamedKeyStrokeListener(e -> showMap());
+    GameModule.getGameModule().addKeyStrokeListener(showKeyListener);
+
+    hideKeyListener = new NamedKeyStrokeListener(e -> hideMap());
+    GameModule.getGameModule().addKeyStrokeListener(hideKeyListener);
+  }
+
+  public void showMap() {
+    if (splitPane == null) {
+      final Container tla = theMap.getTopLevelAncestor();
+      if (tla != null) {
+        tla.setVisible(true);
+      }
+    }
+    else {
+      splitPane.setBottomVisible(true);
+      theMap.setVisible(true);
+    }
+  }
+
+  public void hideMap() {
+    if (splitPane == null) {
+      final Container tla = theMap.getTopLevelAncestor();
+      if (tla != null) {
+        tla.setVisible(false);
+      }
+    }
+    else {
+      splitPane.setBottomVisible(false);
+      theMap.setVisible(false);
+    }
   }
 
   /**
@@ -334,6 +373,8 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
   public static final String CHANGE_FORMAT = "changeFormat"; //$NON-NLS-1$
   public static final String MOVE_KEY = "moveKey"; //$NON-NLS-1$
   public static final String MOVING_STACKS_PICKUP_UNITS = "movingStacksPickupUnits"; //$NON-NLS-1$
+  public static final String SHOW_KEY = "showKey"; //NON-NLS
+  public static final String HIDE_KEY = "hideKey"; //NON-NLS
 
   /**
    * Sets a buildFile (XML) attribute value for this component.
@@ -429,8 +470,15 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
       if (value instanceof String) {
         value = Boolean.valueOf((String) value);
       }
+      final boolean oldValue = useLaunchButtonEdit;
       useLaunchButtonEdit = (Boolean) value;
-      getLaunchButton().setVisible(useLaunchButton);
+      getLaunchButton().setVisible(useLaunchButtonEdit && getLaunchButton().isNonBlank());
+
+      //BR// If we've just turned off the Launch Button, assume that we
+      //BR// should be always (and therefore currently) displaying the map.
+      if (oldValue && !useLaunchButtonEdit) {
+        showMap();
+      }
     }
     else if (SUPPRESS_AUTO.equals(key)) {
       if (value instanceof String) {
@@ -462,8 +510,24 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
       tooltip = (String) value;
       getLaunchButton().setAttribute(key, value);
     }
+    else if (SHOW_KEY.equals(key)) {
+      if (value instanceof String) {
+        value = NamedHotKeyConfigurer.decode((String) value);
+      }
+      showKeyListener.setKeyStroke((NamedKeyStroke) value);
+    }
+    else if (HIDE_KEY.equals(key)) {
+      if (value instanceof String) {
+        value = NamedHotKeyConfigurer.decode((String) value);
+      }
+      hideKeyListener.setKeyStroke((NamedKeyStroke) value);
+    }
     else {
       super.setAttribute(key, value);
+
+      //BR// Prevent launch button from improperly reappearing if its attributes are accessed
+      getLaunchButton().setEnabled(useLaunchButtonEdit);
+      getLaunchButton().setVisible(useLaunchButtonEdit && getLaunchButton().isNonBlank());
     }
   }
 
@@ -543,6 +607,12 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
       return (tooltip == null || tooltip.length() == 0)
         ? getLaunchButton().getAttributeValueString(name) : tooltip;
     }
+    else if (SHOW_KEY.equals(key)) {
+      return NamedHotKeyConfigurer.encode(showKeyListener.getNamedKeyStroke());
+    }
+    else if (HIDE_KEY.equals(key)) {
+      return NamedHotKeyConfigurer.encode(hideKeyListener.getNamedKeyStroke());
+    }
     else {
       return super.getAttributeValueString(key);
     }
@@ -562,18 +632,23 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
       Resources.getString("Editor.Map.map"), //NON-NLS
       "/images/map.gif", //NON-NLS
       evt -> {
-        if (splitPane == null && getLaunchButton().isEnabled()) {
+        if (splitPane == null) {
           final Container tla = theMap.getTopLevelAncestor();
           if (tla != null) {
             tla.setVisible(!tla.isVisible());
           }
         }
+        else {
+          splitPane.setBottomVisible(!theMap.isVisible());
+          theMap.setVisible(!theMap.isVisible());
+        }
       }
     ));
-    launchButton = getLaunchButton(); // for compatibility
+    launchButton = getLaunchButton(); // for binary compatibility
 
     getLaunchButton().setEnabled(false);
     getLaunchButton().setVisible(false);
+    getLaunchButton().setAlwaysAcceptKeystroke(true); //BR// Map allows keystroke to exist even if button not shown/enabled
 
     if (e != null) {
       super.build(e);
@@ -624,6 +699,7 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
     add(b);
     b.addTo(this);
   }
+
 
   /**
    * Every map must include a single {@link BoardPicker} as one of its build components. This will contain
@@ -747,6 +823,18 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
   }
 
   /**
+   * @return KeyBufferer (if any) for this map.
+   */
+  public KeyBufferer getKeyBufferer() {
+    for (final Object o : drawComponents) {
+      if (o instanceof KeyBufferer) {
+        return (KeyBufferer)o;
+      }
+    }
+    return null;
+  }
+
+  /**
    * Registers this Map as a child of another buildable component, usually the {@link GameModule}. Determines a unique id for
    * this Map. Registers itself as {@link KeyStrokeSource}. Registers itself as a {@link GameComponent}. Registers itself as
    * a drop target and drag source. If the map is to be removed or otherwise shutdown, it can be deregistered, reversing this
@@ -765,7 +853,21 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
 
     validator = new CompoundValidityChecker(
       new MandatoryComponent(this, BoardPicker.class),
-      new MandatoryComponent(this, StackMetrics.class)).append(idMgr);
+      new MandatoryComponent(this, StackMetrics.class))
+      .append(idMgr)
+      .append(new SingleChildInstance(this, Zoomer.class))
+      .append(new SingleChildInstance(this, HighlightLastMoved.class))
+      .append(new SingleChildInstance(this, Scroller.class))
+      .append(new SingleChildInstance(this, ForwardToChatter.class))
+      .append(new SingleChildInstance(this, MenuDisplayer.class))
+      .append(new SingleChildInstance(this, MapCenterer.class))
+      .append(new SingleChildInstance(this, StackExpander.class))
+      .append(new SingleChildInstance(this, PieceMover.class))
+      .append(new SingleChildInstance(this, KeyBufferer.class))
+      .append(new SingleChildInstance(this, ForwardToKeyBuffer.class))
+      .append(new SingleChildInstance(this, GlobalProperties.class))
+      .append(new SingleChildInstance(this, SelectionHighlighters.class))
+      .append(new SingleChildInstance(this, LayeredPieceCollection.class));
 
     final DragGestureListener dgl = dge -> {
       if (dragGestureListener != null &&
@@ -781,6 +883,8 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
       theMap, DnDConstants.ACTION_MOVE, this));
     g.getGameState().addGameComponent(this);
     g.getToolBar().add(getLaunchButton());
+    getLaunchButton().setEnabled(useLaunchButtonEdit);
+    getLaunchButton().setVisible(useLaunchButtonEdit && getLaunchButton().isNonBlank());
 
     if (shouldDockIntoMainWindow()) {
       final Component controlPanel = g.getControlPanel();
@@ -2544,17 +2648,7 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
     }
   }
 
-  /**
-   * If this map shows with its own special button, it does not dock into the main window. Likewise if we have
-   * no combined window setting. Otherwise the *first* non-button-launched map we find will be the one we dock.
-   * @return whether this map should dock into the main window
-   */
-  public boolean shouldDockIntoMainWindow() {
-    // set to show via a button, or no combined window at all, don't dock
-    if (useLaunchButton || !GlobalOptions.getInstance().isUseSingleWindow()) {
-      return false;
-    }
-
+  public boolean isFirstMap() {
     // otherwise dock if this map is the first not to show via a button
     for (final Map m : GameModule.getGameModule().getComponentsOf(Map.class)) {
       if (m == this) {
@@ -2566,6 +2660,20 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
     }
     // Module isn't fully built yet, and/or no maps at all in module yet (perhaps THIS map will soon be the first one)
     return true;
+  }
+
+  /**
+   * If this map shows with its own special button, it does not dock into the main window. Likewise if we have
+   * no combined window setting. Otherwise the *first* non-button-launched map we find will be the one we dock.
+   * @return whether this map should dock into the main window
+   */
+  public boolean shouldDockIntoMainWindow() {
+    // set to show via a button, or no combined window at all, don't dock
+    if (useLaunchButton || !GlobalOptions.getInstance().isUseSingleWindow()) {
+      return false;
+    }
+
+    return isFirstMap();
   }
 
   /**
@@ -2637,7 +2745,7 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
             topWindow.addWindowListener(new WindowAdapter() {
               @Override
               public void windowClosing(WindowEvent e) {
-                if (useLaunchButton) {
+                if (useLaunchButtonEdit) {
                   topWindow.setVisible(false);
                 }
                 else {
@@ -2652,7 +2760,7 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
               new PositionOption(PositionOption.key + getIdentifier(), topWindow);
             g.getPrefs().addOption(option);
           }
-          theMap.getTopLevelAncestor().setVisible(!useLaunchButton);
+          theMap.getTopLevelAncestor().setVisible(!useLaunchButtonEdit);
           theMap.revalidate();
         }
 
@@ -2707,8 +2815,8 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
 
     if (show || !g.isLoadOverSemaphore()) {
       toolBar.setVisible(show);
-      getLaunchButton().setEnabled(show);
-      getLaunchButton().setVisible(useLaunchButton);
+      getLaunchButton().setEnabled(show && useLaunchButtonEdit);
+      getLaunchButton().setVisible(useLaunchButtonEdit && getLaunchButton().isNonBlank());
       if (g.isLoadOverSemaphore()) {
         theMap.repaint();
       }
@@ -3074,16 +3182,18 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
       Resources.getString("Editor.Map.multiboard"), //$NON-NLS-1$
       Resources.getString("Editor.Map.bc_selected_counter"), //$NON-NLS-1$
       Resources.getString("Editor.Map.bt_selected_counter"), //$NON-NLS-1$
-      Resources.getString("Editor.Map.show_hide"), //$NON-NLS-1$
+      isFirstMap() ? Resources.getString("Editor.Map.show_hide_first") : Resources.getString("Editor.Map.show_hide"), //$NON-NLS-1$
       Resources.getString(Resources.BUTTON_TEXT),
       Resources.getString(Resources.TOOLTIP_TEXT),
       Resources.getString(Resources.BUTTON_ICON),
-      Resources.getString(Resources.HOTKEY_LABEL),
+      Resources.getString("Editor.Map.toggle_key"),
+      Resources.getString("Editor.Map.show_key"),
+      Resources.getString("Editor.Map.hide_key"),
       Resources.getString("Editor.Map.report_move_within"), //$NON-NLS-1$
       Resources.getString("Editor.Map.report_move_to"), //$NON-NLS-1$
       Resources.getString("Editor.Map.report_created"), //$NON-NLS-1$
       Resources.getString("Editor.Map.report_modified"), //$NON-NLS-1$
-      Resources.getString("Editor.Map.key_applied_all") //$NON-NLS-1$
+      Resources.getString("Editor.Map.key_applied_all"), //$NON-NLS-1$
     };
   }
 
@@ -3113,11 +3223,13 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
       TOOLTIP,
       ICON,
       HOTKEY,
+      SHOW_KEY,
+      HIDE_KEY,
       MOVE_WITHIN_FORMAT,
       MOVE_TO_FORMAT,
       CREATE_FORMAT,
       CHANGE_FORMAT,
-      MOVE_KEY
+      MOVE_KEY,
     };
   }
 
@@ -3148,11 +3260,13 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
       String.class,
       IconConfig.class,
       NamedKeyStroke.class,
+      NamedKeyStroke.class,
+      NamedKeyStroke.class,
       MoveWithinFormatConfig.class,
       MoveToFormatConfig.class,
       CreateFormatConfig.class,
       ChangeFormatConfig.class,
-      NamedKeyStroke.class
+      NamedKeyStroke.class,
     };
   }
 
@@ -3314,7 +3428,7 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
    */
   @Override
   public Class<?>[] getAllowableConfigureComponents() {
-    return new Class<?>[]{ GlobalMap.class, LOS_Thread.class, ToolbarMenu.class, MultiActionButton.class, HidePiecesButton.class, Zoomer.class,
+    return new Class<?>[]{ MapSubFolder.class, GlobalMap.class, LOS_Thread.class, ToolbarMenu.class, MultiActionButton.class, HidePiecesButton.class, Zoomer.class,
       CounterDetailViewer.class, HighlightLastMoved.class, LayeredPieceCollection.class, ImageSaver.class, TextSaver.class, DrawPile.class, SetupStack.class,
       MassKeyCommand.class, MapShader.class, PieceRecenterer.class, Flare.class };
   }
@@ -3326,9 +3440,9 @@ public class Map extends AbstractToolbarItem implements GameComponent, MouseList
   @Override
   public VisibilityCondition getAttributeVisibility(String name) {
     if (visibilityCondition == null) {
-      visibilityCondition = () -> useLaunchButton;
+      visibilityCondition = () -> useLaunchButtonEdit;
     }
-    if (List.of(HOTKEY, BUTTON_NAME, TOOLTIP, ICON).contains(name)) {
+    if (List.of(BUTTON_NAME, TOOLTIP, ICON).contains(name)) {
       return visibilityCondition;
     }
     else if (List.of(MARK_UNMOVED_TEXT, MARK_UNMOVED_ICON, MARK_UNMOVED_TOOLTIP).contains(name)) {
