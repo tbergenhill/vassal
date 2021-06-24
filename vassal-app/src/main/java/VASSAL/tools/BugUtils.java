@@ -21,14 +21,16 @@ public class BugUtils {
                                    Throwable t) throws IOException {
     final HTTPPostBuilder pb = new HTTPPostBuilder();
 
-    final String url = "http://www.vassalengine.org/util/bug.php"; //NON-NLS
+    // read the config file to get the server URL
+    ConfigFileReader config = new ConfigFileReader();
+    String serverURL = config.getServerURL() + "/util/bug.php"; //$NON-NLS-1$
     pb.setParameter("version", Info.getReportableVersion()); //NON-NLS
     pb.setParameter("email", email); //NON-NLS
     pb.setParameter("summary", getSummary(t)); //NON-NLS
     pb.setParameter("description", getDescription(description, errorLog)); //NON-NLS
     pb.setParameter("log", Info.getErrorLogPath().getName(), errorLog); //NON-NLS
 
-    try (InputStream in = pb.post(url)) {
+    try (InputStream in = pb.post(serverURL)) {
       final String result = IOUtils.toString(in, StandardCharsets.UTF_8);
 
       // script should return zero on success, otherwise it failed

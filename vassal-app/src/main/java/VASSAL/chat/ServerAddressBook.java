@@ -32,6 +32,7 @@ import VASSAL.tools.icon.IconFactory;
 import VASSAL.tools.icon.IconFamily;
 import VASSAL.tools.swing.Dialogs;
 import VASSAL.tools.swing.SwingUtils;
+import VASSAL.tools.ConfigFileReader;
 
 import java.awt.Component;
 import java.awt.Font;
@@ -90,6 +91,7 @@ public class ServerAddressBook {
   private static ServerAddressBook instance;
   private static String localIPAddress;
   private static String externalIPAddress;
+  private static String serverURL = "";
 
   private JButton addButton;
   private JButton removeButton;
@@ -139,7 +141,7 @@ public class ServerAddressBook {
 
   private static String discoverMyIpAddressFromRemote() throws IOException {
     String theIp;
-    final HttpRequestWrapper r = new HttpRequestWrapper("http://www.vassalengine.org/util/getMyAddress"); //$NON-NLS-1$
+    final HttpRequestWrapper r = new HttpRequestWrapper(serverURL + "/util/getMyAddress"); //$NON-NLS-1$
     final List<String> l = r.doGet(null);
     if (!l.isEmpty()) {
       theIp = l.get(0);
@@ -223,6 +225,9 @@ public class ServerAddressBook {
 
   public ServerAddressBook() {
     instance = this;
+    // read the config file to get the server URL
+    ConfigFileReader config = new ConfigFileReader();
+    serverURL = config.getServerURL();
   }
 
   public JComponent getControls() {

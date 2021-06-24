@@ -74,6 +74,21 @@
             <version>2.7</version>
         </dependency>
         <dependency>
+            <groupId>commons-beanutils</groupId>
+            <artifactId>commons-beanutils</artifactId>
+            <version>1.9.4</version>
+        </dependency>
+        <dependency>
+  			<groupId>commons-logging</groupId>
+  			<artifactId>commons-logging</artifactId>
+  			<version>1.2</version>
+		</dependency>
+		<dependency>
+            <groupId>org.apache.commons</groupId>
+  			<artifactId>commons-text</artifactId>
+  			<version>1.9</version>
+		</dependency>
+        <dependency>
             <groupId>org.apache.xmlgraphics</groupId>
             <artifactId>batik-codec</artifactId>
             <version>${version.batik}</version>

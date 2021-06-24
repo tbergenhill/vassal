@@ -91,6 +91,7 @@ import VASSAL.preferences.Prefs;
 import VASSAL.tools.ErrorDialog;
 import VASSAL.tools.SplashScreen;
 import VASSAL.tools.image.ImageUtils;
+import VASSAL.tools.ConfigFileReader;
 
 /**
  * Provides support for two different wizards. The WelcomeWizard is the initial screen shown to the user when loading a
@@ -149,6 +150,10 @@ public class WizardSupport {
    *
    */
   public void showWelcomeWizard() {
+	  ConfigFileReader config = new ConfigFileReader();
+	  
+	  String serverURL = config.getServerURL() + config.getWiki() + "/doku.php?id=getting_started:getting_started"; //$NON-NLS-1$
+	  
     final GameModule g = GameModule.getGameModule();
     final WizardBranchController c = createWelcomeWizard();
     final Wizard welcomeWizard = c.createWizard();
@@ -157,7 +162,7 @@ public class WizardSupport {
 
     Action help = null;
     try {
-      help = new ShowHelpAction(new URL("http://www.vassalengine.org/wiki/doku.php?id=getting_started:getting_started"), null);  //NON-NLS
+      help = new ShowHelpAction(new URL(serverURL), null);  //NON-NLS
     }
     catch (MalformedURLException e) {
       ErrorDialog.bug(e);

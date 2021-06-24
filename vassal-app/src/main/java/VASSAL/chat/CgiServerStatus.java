@@ -28,11 +28,14 @@ import java.util.NoSuchElementException;
 import java.util.Properties;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.commons.lang3.Range;
 
 import VASSAL.i18n.Resources;
 import VASSAL.tools.SequenceEncoder;
+import VASSAL.tools.ConfigFileReader;
 
 /**
  * Queries a known URL to get historical status of the chat room server.
@@ -40,6 +43,7 @@ import VASSAL.tools.SequenceEncoder;
  * @author rkinney
  */
 public class CgiServerStatus implements ServerStatus {
+	private static final Logger logger = LoggerFactory.getLogger(CgiServerStatus.class);
   private static final long DAY = 24L * 3600L * 1000L;
 
   public static final String LAST_DAY = "Server.last_24_hours"; //$NON-NLS-1$
@@ -57,7 +61,11 @@ public class CgiServerStatus implements ServerStatus {
   private final HttpRequestWrapper request;
 
   public CgiServerStatus() {
-    request = new HttpRequestWrapper("http://www.vassalengine.org/util/"); //$NON-NLS-1$
+	// read the config file to get the server URL
+	ConfigFileReader config = new ConfigFileReader();
+	String serverURL = "";
+    serverURL = config.getServerURL() + "/util/"; //$NON-NLS-1$
+	request = new HttpRequestWrapper(serverURL);
     timeRanges.put(Resources.getString(LAST_DAY), DAY);
     timeRanges.put(Resources.getString(LAST_WEEK), DAY * 7);
     timeRanges.put(Resources.getString(LAST_MONTH), DAY * 30);

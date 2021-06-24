@@ -17,14 +17,20 @@
 package VASSAL.chat.node;
 
 import java.util.Properties;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import VASSAL.build.GameModule;
 import VASSAL.chat.ChatServerConnection;
 import VASSAL.chat.HttpMessageServer;
 import VASSAL.chat.peer2peer.PeerPoolInfo;
 import VASSAL.i18n.Resources;
+import VASSAL.tools.ConfigFileReader;
 
 public class OfficialNodeClientFactory extends NodeClientFactory {
+	  private static final Logger logger = LoggerFactory.getLogger(OfficialNodeClientFactory.class);
   public static final String OFFICIAL_TYPE = "official"; //$NON-NLS-1$
   public static final String OFFICIAL_HOST = "game.vassalengine.org"; //NON-NLS
   public static final String OFFICIAL_PORT = "5050";
@@ -33,9 +39,16 @@ public class OfficialNodeClientFactory extends NodeClientFactory {
   private static final String UNKNOWN_USER = Resources.getString("Chat.unknown_user");  //$NON-NLS-1$
 
   @Override
-  protected ChatServerConnection buildServerImpl(Properties param) {
-    final String host = param.getProperty(NODE_HOST, OFFICIAL_HOST);  //$NON-NLS-1$
-    final int port = Integer.parseInt(param.getProperty(NODE_PORT, OFFICIAL_PORT));  //$NON-NLS-1$
+  protected ChatServerConnection buildServerImpl(Properties param) {// read the config file to get the server URL
+	  ConfigFileReader config = new ConfigFileReader();
+	  	  
+	  // DEBUG-MITRE
+	  StringWriter writer = new StringWriter();
+	  param.list(new PrintWriter(writer));
+	  logger.info("OfficialNodeClientFactory.buildServerImpl(): \n{}", writer.getBuffer().toString());
+	  
+	  final String host = param.getProperty(NODE_HOST, config.getServerName());//$NON-NLS-1$
+	  final int port = Integer.parseInt(param.getProperty(NODE_PORT, String.valueOf(config.getServerPort()))); //$NON-NLS-1$
 
     final PeerPoolInfo publicInfo = new PeerPoolInfo() {
       @Override
