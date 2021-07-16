@@ -697,7 +697,8 @@ public class GameModule extends AbstractConfigurable
    * Initialize and register our "logger", which allows player commands to be recorded into a .vlog file for PBEM games.
    */
   private void initLogger() {
-    logger = new BasicLogger();
+    //logger = new BasicLogger();
+	  logger = new VASSAL.build.module.TextLogger();
     ((BasicLogger) logger).build(null);
     ((BasicLogger) logger).addTo(this);
   }
