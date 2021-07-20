@@ -34,15 +34,16 @@ public class TextLogger extends BasicLogger {
 	@Override
 	public void log(Command c) {
 		super.log(c);
-		
-		// Turn the command into a more readable text string and prepend a date/time
-		String commandText = c.toString();
-		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy:MM:dd:HH:mm:ss+");
-		commandText = dateFormat.format(new Date()) + commandText;
-		
-		// Write to the text file
-		textFileWriter.println(commandText);
-		textFileWriter.flush();
+		if (textFileWriter != null) {
+			// Turn the command into a more readable text string and prepend a date/time
+			String commandText = c.toString();
+			SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy:MM:dd:HH:mm:ss+");
+			commandText = dateFormat.format(new Date()) + commandText;
+			
+			// Write to the text file
+			textFileWriter.println(commandText);
+			textFileWriter.flush();
+		}
 	}
 
 	@Override
