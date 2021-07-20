@@ -2,7 +2,7 @@
 REM Execute this file to launch VASSAL on Windows
 
 IF EXIST "%~dp0\lib\Vengine.jar" (
-  START javaw -client -Xmx1G -cp lib/Vengine.jar VASSAL.launch.ModuleManager %*
+  START javaw -client -Xmx4G -cp lib/Vengine.jar VASSAL.launch.ModuleManager %*
   IF ERRORLEVEL 1 (
     ECHO MsgBox "VASSAL was unable to start. Please ensure that you have Java installed.", vbCritical, "VASSAL Could Not Start" >"%~dp0\msg.vbs"
     WSCRIPT "%~dp0\msg.vbs"
