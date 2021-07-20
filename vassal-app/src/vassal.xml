@@ -5,7 +5,7 @@
   <useSSL>false</useSSL>
   <!-- server, no default -->
   <server>127.0.0.1</server>
-  <!-- port, default = 5050 -->)
+  <!-- port, default = 5050 -->
   <port>5050</port>
   <!-- wiki, path to the wiki within <server> -->
   <wiki>/wiki</wiki>
