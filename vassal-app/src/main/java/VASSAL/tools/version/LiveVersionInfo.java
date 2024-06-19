@@ -24,7 +24,6 @@ import java.nio.charset.StandardCharsets;
 import org.apache.commons.io.IOUtils;
 
 public class LiveVersionInfo implements VersionInfo {
-  private static final String baseURL = "https://vassalengine.org/util/"; //NON-NLS
 
   private static final String currentRelease = "current-release"; //NON-NLS
   private static final String currentBeta = "current-beta"; //NON-NLS
@@ -35,7 +34,7 @@ public class LiveVersionInfo implements VersionInfo {
   @Override
   public String getRelease() throws IOException {
     if (release == null) {
-      release = getVersion(baseURL + currentRelease);
+      release = getVersion(VASSAL.tools.ConfigFileReader.getUtilURL() + currentRelease);
     }
     return release;
   }
@@ -43,7 +42,7 @@ public class LiveVersionInfo implements VersionInfo {
   @Override
   public String getBeta() throws IOException {
     if (beta == null) {
-      beta = getVersion(baseURL + currentBeta);
+      beta = getVersion(VASSAL.tools.ConfigFileReader.getUtilURL() + currentBeta);
     }
     return beta;
   }

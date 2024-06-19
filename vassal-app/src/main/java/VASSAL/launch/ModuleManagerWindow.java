@@ -186,7 +186,7 @@ public class ModuleManagerWindow extends JFrame {
   private static final ModuleManagerWindow instance = new ModuleManagerWindow();
 
   public ModuleManagerWindow() {
-    setTitle("VASSAL " + Info.getVersion()); //NON-NLS
+    setTitle("MITRE VASSAL " + Info.getVersion()); //NON-NLS
     setLayout(new BoxLayout(getContentPane(), BoxLayout.X_AXIS));
 
     ApplicationIcons.setFor(this);
@@ -492,8 +492,9 @@ public class ModuleManagerWindow extends JFrame {
         @Override
         public Void doInBackground() throws InterruptedException, IOException {
           // clear tiles in both old (conf) and new (cache) locations
-          for (final File d : List.of(Info.getCacheDir(), Info.getConfDir())) {
-            final Path tdir = d.toPath().resolve("tiles");
+          final File d = new File(VASSAL.tools.ConfigFileReader.getTileCachePath());
+          {
+            final Path tdir = d.toPath();
             if (Files.exists(tdir)) {
               try {
                 Files.walkFileTree(tdir, new DirectoryTreeDeleter());
@@ -1634,7 +1635,8 @@ public class ModuleManagerWindow extends JFrame {
         metadata.getName() + "_" + metadata.getVersion()
       );
 
-      final Path tdir = Info.getCacheDir().toPath().resolve("tiles/" + hstr);
+      final File d = new File(VASSAL.tools.ConfigFileReader.getTileCachePath());
+      final Path tdir = d.toPath().resolve(hstr);
       if (Files.exists(tdir)) {
         try {
           Files.walkFileTree(tdir, new DirectoryTreeDeleter());

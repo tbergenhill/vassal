@@ -63,8 +63,8 @@ public class Server extends Thread {
   public static void main(String[] args) throws Exception {
     final Properties p = new ArgsParser(args).getProperties();
 
-    final int port = Integer.parseInt(p.getProperty("port", "5050")); //$NON-NLS-1$ //$NON-NLS-2$
-    String reportURL = p.getProperty("URL", "https://vassalengine.org/util/"); //$NON-NLS-1$ //$NON-NLS-2$
+    final int port = Integer.parseInt(p.getProperty("port", String.valueOf(VASSAL.tools.ConfigFileReader.getServerPort()))); //$NON-NLS-1$ //$NON-NLS-2$
+    String reportURL = p.getProperty("URL", VASSAL.tools.ConfigFileReader.getUtilURL()); //$NON-NLS-1$ //$NON-NLS-2$
     if ("null".equals(reportURL)) { //$NON-NLS-1$
       reportURL = null;
     }

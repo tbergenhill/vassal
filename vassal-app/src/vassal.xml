@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<configuration>
+  <!-- useSSL, default = false -->
+  <useSSL>false</useSSL>
+  <!-- server, no default -->
+  <server>127.0.0.1</server> 
+  <!-- port, default = 5050 -->
+  <port>5050</port>
+  <!-- wiki, path to the wiki within <server> -->
+  <wiki>wiki/</wiki>
+  <!-- util, path to the util within <server> -->
+  <util>util/</util>
+  <!-- Alternate tile cache location -->
+  <tileCachePath>./tiles/</tileCachePath> 
+</configuration>

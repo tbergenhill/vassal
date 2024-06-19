@@ -51,17 +51,19 @@ public class HttpMessageServer implements MessageBoard, WelcomeMessageServer {
 
   public HttpMessageServer(PeerPoolInfo info) {
     this(
-      "https://vassalengine.org/util/getMessages", //$NON-NLS-1$
-      "https://vassalengine.org/util/postMessage", //$NON-NLS-1$
-      "https://vassalengine.org/util/motd",        //$NON-NLS-1$
+      "getMessages", //$NON-NLS-1$
+      "postMessage", //$NON-NLS-1$
+      "motd",        //$NON-NLS-1$
       info
     );
   }
 
   public HttpMessageServer(String getMessagesURL, String postMessageURL, String welcomeURL, PeerPoolInfo info) {
-    this.getMessagesURL = new HttpRequestWrapper(getMessagesURL);
-    this.welcomeURL = new HttpRequestWrapper(welcomeURL);
-    this.postMessageURL = new HttpRequestWrapper(postMessageURL);
+    final String utilURL = VASSAL.tools.ConfigFileReader.getUtilURL();
+    logger.info("Welcome URL:"+utilURL+welcomeURL);
+    this.getMessagesURL = new HttpRequestWrapper(utilURL+getMessagesURL);
+    this.welcomeURL = new HttpRequestWrapper(utilURL+welcomeURL);
+    this.postMessageURL = new HttpRequestWrapper(utilURL+postMessageURL);
     this.info = info;
   }
 

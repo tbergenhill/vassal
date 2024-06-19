@@ -153,6 +153,7 @@ public class WizardSupport {
    *
    */
   public void showWelcomeWizard() {
+	final String serverURL = VASSAL.tools.ConfigFileReader.getWikiURL() + "/Getting_Started";  //NON-NLS
     final GameModule g = GameModule.getGameModule();
     final WizardBranchController c = createWelcomeWizard();
     final Wizard welcomeWizard = c.createWizard();
@@ -161,7 +162,7 @@ public class WizardSupport {
 
     Action help = null;
     try {
-      help = new ShowHelpAction(new URL("https://vassalengine.org/wiki/Getting_Started"), null);  //NON-NLS
+      help = new ShowHelpAction(new URL(serverURL), null); 
     }
     catch (MalformedURLException e) {
       ErrorDialog.bug(e);

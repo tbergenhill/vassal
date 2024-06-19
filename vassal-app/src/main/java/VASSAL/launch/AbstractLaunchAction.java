@@ -303,7 +303,7 @@ public abstract class AbstractLaunchAction extends AbstractAction {
         final String hstr =
           DigestUtils.sha1Hex(meta.getName() + "_" + meta.getVersion());
 
-        final File cdir = new File(Info.getCacheDir(), "tiles/" + hstr);
+        final File cdir = new File(VASSAL.tools.ConfigFileReader.getTileCachePath() + hstr);
 
         final TilingHandler th = new TilingHandler(
           aname,

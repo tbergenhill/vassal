@@ -26,16 +26,14 @@ import VASSAL.i18n.Resources;
 
 public class OfficialNodeClientFactory extends NodeClientFactory {
   public static final String OFFICIAL_TYPE = "official"; //$NON-NLS-1$
-  public static final String OFFICIAL_HOST = "game.vassalengine.org"; //NON-NLS
-  public static final String OFFICIAL_PORT = "5050";
 
   private static final String UNNAMED_MODULE = Resources.getString("Chat.unknown_module");  //$NON-NLS-1$
   private static final String UNKNOWN_USER = Resources.getString("Chat.unknown_user");  //$NON-NLS-1$
 
   @Override
   protected ChatServerConnection buildServerImpl(Properties param) {
-    final String host = param.getProperty(NODE_HOST, OFFICIAL_HOST);  //$NON-NLS-1$
-    final int port = Integer.parseInt(param.getProperty(NODE_PORT, OFFICIAL_PORT));  //$NON-NLS-1$
+    final String host = param.getProperty(NODE_HOST, VASSAL.tools.ConfigFileReader.getServerName());  //$NON-NLS-1$
+    final int port = Integer.parseInt(param.getProperty(NODE_PORT, String.valueOf(VASSAL.tools.ConfigFileReader.getServerPort())));  //$NON-NLS-1$
 
     final PeerPoolInfo publicInfo = new PeerPoolInfo() {
       @Override

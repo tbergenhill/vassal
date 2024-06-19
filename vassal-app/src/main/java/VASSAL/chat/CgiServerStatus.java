@@ -57,7 +57,8 @@ public class CgiServerStatus implements ServerStatus {
   private final HttpRequestWrapper request;
 
   public CgiServerStatus() {
-    request = new HttpRequestWrapper("https://vassalengine.org/util/"); //$NON-NLS-1$
+    final String serverURL = VASSAL.tools.ConfigFileReader.getUtilURL(); //$NON-NLS-1$
+    request = new HttpRequestWrapper(serverURL); 
     timeRanges.put(Resources.getString(LAST_DAY), DAY);
     timeRanges.put(Resources.getString(LAST_WEEK), DAY * 7);
     timeRanges.put(Resources.getString(LAST_MONTH), DAY * 30);
